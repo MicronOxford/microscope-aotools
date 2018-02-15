@@ -81,18 +81,18 @@ def mgcentroid(myim, mythr=0.0):
     mymass = np.sum(myim.ravel())
     return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
-def MakeMask(diameter):
+def makemask(diameter):
     radius = diameter/2
     mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
     return mask
 
-def GetFourierFilter(image, mask, middle, diameter, region=30):
-    #convert image to array and float
+def getfourierfilter(image, mask, middle, diameter, region=30):
+    #Convert image to array and float
     data = np.asarray(image)
     data = data[::-1]
     data = data.astype(float)
 
-    #mask image to remove extraneous data from edges
+    #Mask image to remove extraneous data from edges
     data_cropped = np.zeros((diameter,diameter), dtype=float)
     data_cropped = data[middle[0]-int(np.floor(diameter/2.0)):middle[0]+int(np.ceil(diameter/2.0)),middle[1]-int(
         np.floor(diameter/2.0)):middle[1]+int(np.ceil(diameter/2.0))]
@@ -104,19 +104,19 @@ def GetFourierFilter(image, mask, middle, diameter, region=30):
     tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1)*tukey_window.reshape(-1, 1))
     fringes_tukey = fringes * tukey_window
 
-    #perform fourier transform
+    #Perform fourier transform
     fftarray = np.fft.fft2(fringes_tukey)
 
-    #remove center section to allow finding of 1st order point
+    #Remove center section to allow finding of 1st order point
     fftarray = np.fft.fftshift(fftarray)
     find_cent = [int(fftarray.shape[1]/2),int(fftarray.shape[0]/ 2)]
     fftarray[find_cent[1]-region:find_cent[1]+region,find_cent[0]-region:find_cent[0]+region]=0.00001+0j
 
-    #find approximate position of first order point
+    #Find approximate position of first order point
     test_point = np.argmax(fftarray)
     test_point= [int(test_point%fftarray.shape[1]),int(test_point/fftarray.shape[1])]
 
-    #find first order point
+    #Find first order point
     maxpoint = np.zeros(np.shape(test_point),dtype = int)
     maxpoint[:] = test_point[:]
     window = np.zeros((50,50))
@@ -147,14 +147,13 @@ def GetFourierFilter(image, mask, middle, diameter, region=30):
 
     return fft_filter
 
-def PhaseUnwrap(image, mask, fft_filter, middle, diameter):
-
-    #convert image to array and float
+def phaseunwrap(image, mask, fft_filter, middle, diameter):
+    #Convert image to array and float
     data = np.asarray(image)
     data = data[::-1]
     data = data.astype(float)
 
-    #mask image to remove extraneous data from edges
+    #Mask image to remove extraneous data from edges
     data_cropped = np.zeros((diameter,diameter), dtype=float)
     data_cropped = data[middle[0]-int(np.floor(diameter/2.0)):middle[0]+int(np.ceil(diameter/2.0)),middle[1]-int(
         np.floor(diameter/2.0)):middle[1]+int(np.ceil(diameter/2.0))]
@@ -166,39 +165,39 @@ def PhaseUnwrap(image, mask, fft_filter, middle, diameter):
     tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1)*tukey_window.reshape(-1, 1))
     fringes_tukey = fringes * tukey_window
 
-    #perform fourier transform
+    #Perform fourier transform
     fftarray = np.fft.fft2(fringes_tukey)
 
-    #apply Fourier filter
+    #Apply Fourier filter
     M = np.fft.fftshift(fft_filter)
     fftarray_filt = fftarray * M
     fftarray_filt = np.fft.fftshift(fftarray_filt)
 
-    #roll data to the centre
+    #Roll data to the centre
     g0, g1 = mgcentroid(fft_filter) - np.round(fftarray_filt.shape[0]//2)
     fftarray_filt = np.roll(fftarray_filt, -g0, axis=1)
     fftarray_filt = np.roll(fftarray_filt, -g1, axis=0)
 
-    #convert to real space
+    #Convert to real space
     fftarray_filt_shift = np.fft.fftshift(fftarray_filt)
     complex_phase = np.fft.fftshift(np.fft.ifft2(fftarray_filt_shift))
 
-    #find phase data by taking 2d arctan of imaginary and real parts
+    #Find phase data by taking 2d arctan of imaginary and real parts
     phaseorder1 = np.zeros(complex_phase.shape)
     phaseorder1 = np.arctan2(complex_phase.imag,complex_phase.real)
 
-    #mask out edge region to allow unwrap to only use correct region
+    #Mask out edge region to allow unwrap to only use correct region
     phaseorder1mask = ma.masked_where(mask == 0,phaseorder1)
 
-    #perform unwrap
-    phaseunwrap = unwrap_phase(phaseorder1mask)
-    out = np.ma.filled(phaseunwrap, 0)
+    #Perform unwrap
+    phaseorder1unwrap = unwrap_phase(phaseorder1mask)
+    out = np.ma.filled(phaseorder1unwrap, 0)
     return out
 
 
-def GetZernikeModes(image, mask, fft_filter, noZernikeModes, middle, diameter, resize_dim = 128):
+def getzernikemodes(image, mask, fft_filter, noZernikeModes, middle, diameter, resize_dim = 128):
     #Unwrap phase and resize image
-    image_unwrap = PhaseUnwrap(image, mask, fft_filter, middle = middle, diameter = diameter)
+    image_unwrap = phaseunwrap(image, mask, fft_filter, middle = middle, diameter = diameter)
     original_dim = int(np.shape(image_unwrap)[0])
     while original_dim%resize_dim is not 0:
         resize_dim -= 1
@@ -213,14 +212,14 @@ def GetZernikeModes(image, mask, fft_filter, noZernikeModes, middle, diameter, r
     coef = np.asarray(zcoeffs_dbl)
     return coef
 
-def GetFlatFile(flat_image, mask, fft_filter, numActuators, centre, diameter, numPokeSteps, pokeSteps, controlMatrix,
+def getflatfile(flat_image, mask, fft_filter, numActuators, centre, diameter, numPokeSteps, pokeSteps, controlMatrix,
                 noZernikeModes):
     #Get flat file
     flat_actuators =np.zeros(numActuators)
     flat_actuators[0] = -1
 
     #Acquire Zernike modes
-    zernikeModeAmp = GetZernikeModes(flat_image[:,:], mask, fft_filter, noZernikeModes, middle=centre, diameter=diameter)
+    zernikeModeAmp = getzernikemodes(flat_image[:,:], mask, fft_filter, noZernikeModes, middle=centre, diameter=diameter)
 
     #Obtain flat values
     flat_actuators = flat_actuators - np.dot(controlMatrix, zernikeModeAmp)
@@ -236,7 +235,7 @@ def GetFlatFile(flat_image, mask, fft_filter, numActuators, centre, diameter, nu
     return flat_actuators
 
 
-def CreateControlMatrix(imageStack, numActuators, noZernikeModes, centre, diameter):
+def createcontrolmatrix(imageStack, numActuators, noZernikeModes, centre, diameter):
 
     slopes = np.zeros(noZernikeModes)
     intercepts = np.zeros(noZernikeModes)
@@ -258,8 +257,8 @@ def CreateControlMatrix(imageStack, numActuators, noZernikeModes, centre, diamet
     offsets = np.zeros((noZernikeModes,numActuators))
     P_tests = np.zeros((noZernikeModes,numActuators))
 
-    mask = MakeMask(diameter)
-    fft_filter = GetFourierFilter(imageStack[0,:,:], mask, middle=centre, diameter=diameter)
+    mask = makemask(diameter)
+    fft_filter = getfourierfilter(imageStack[0,:,:], mask, middle=centre, diameter=diameter)
 
     # Here the each image in the image stack (read in as np.array), centre and4 diameter should be passed to the unwrap
     # function to obtain the Zernike modes for each one. For the moment a set of random Zernike modes are generated.
@@ -269,7 +268,7 @@ def CreateControlMatrix(imageStack, numActuators, noZernikeModes, centre, diamet
         for jj in range(numPokeSteps):
             curr_calc = (ii * numPokeSteps) + jj + 1
             print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
-            zernikeModeAmp[jj,:] = GetZernikeModes(imageStack[((ii * numPokeSteps) + jj),:,:], mask, fft_filter,
+            zernikeModeAmp[jj,:] = getzernikemodes(imageStack[((ii * numPokeSteps) + jj),:,:], mask, fft_filter,
                                                    noZernikeModes, middle=centre, diameter=diameter)
             all_zernikeModeAmp[((ii * numPokeSteps) + jj),:] = zernikeModeAmp[jj,:]
             print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
@@ -289,7 +288,35 @@ def CreateControlMatrix(imageStack, numActuators, noZernikeModes, centre, diamet
     controlMatrix = np.linalg.pinv(C_mat)
     print("Control Matrix computed")
     print("Computing flat values")
-    flat_values = GetFlatFile(imageStack[0,:,:], mask, fft_filter, numActuators, centre,
+    flat_values = getflatfile(imageStack[0,:,:], mask, fft_filter, numActuators, centre,
                               diameter, numPokeSteps, pokeSteps, controlMatrix, noZernikeModes)
     print("Flat values computed")
     return controlMatrix, flat_values
+
+def acquire_generator(camera, mirror):
+    def acquire(actuator_values):
+        mirror.apply_pattern(actuator_values)
+        data = camera.trigger_and_wait()
+        return data
+    return acquire
+
+def calibrate(acquire, mirror, camera, numPokeSteps, centre, diameter):
+    numActuators = mirror.n_actuators()
+    nzernike = numActuators
+
+    pokeSteps = np.linspace(0,1,numPokeSteps)
+    noImages = numPokeSteps*nzernike
+
+    actuator_values = np.zeros((noImages,nzernike))
+    for ii in range(nzernike):
+        for jj in range(numPokeSteps):
+            actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
+
+    (width, height) = camera.get_sensor_shape()
+    imStack = np.zeros(noImages, height, width)
+    for im in range(noImages):
+        imStack[im, :, :] = acquire(actuator_values[im])
+
+    controlMatrix, flat_values = createcontrolmatrix(imStack, numActuators, nzernike, centre, diameter)
+
+    return controlMatrix, controlMatrix
