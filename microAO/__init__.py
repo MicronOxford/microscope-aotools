@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-## Copyright (C) 2018 Nick Hall <nicholas.hall@dtc.ox.ac.uk>
+## Copyright (C) 2018 Nicholas Hall <nicholas.hall@dtc.ox.ac.uk>
 ##
 ## microAO is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -78,13 +78,6 @@ def mgcentroid(myim, mythr=0.0):
     mysum2 = np.sum((myxx2*myim).ravel())
     mymass = np.sum(myim.ravel())
     return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
-
-def make_rzern(Zern_order, length):
-    dd = np.linspace(-1, 1, length)
-    xx, yy = np.meshgrid(dd, dd)
-    rzern = enz.RZern(Zern_order)
-    rzern.make_cart_grid(xx, yy)
-    return rzern
 
 def MakeMask(diameter):
     radius = diameter/2
