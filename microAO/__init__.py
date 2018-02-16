@@ -27,7 +27,6 @@ import aotools
 import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
-from skimage import io
 
 def bin_ndarray(ndarray, new_shape, operation='sum'):
     """
@@ -319,4 +318,17 @@ def calibrate(acquire, mirror, camera, numPokeSteps, centre, diameter):
 
     controlMatrix, flat_values = createcontrolmatrix(imStack, numActuators, nzernike, centre, diameter)
 
-    return controlMatrix, controlMatrix
+    return controlMatrix, flat_values
+
+def flatten(acquire, controlMatrix, centre, diameter):
+    numActuators, nzernike = np.shape(controlMatrix)
+
+    mask = makemask(diameter)
+    interferogram = acquire()
+    fft_filter = getfourierfilter(interferogram, mask, centre, diameter)
+
+    z_amps = getzernikemodes(interferogram, mask, fft_filter, nzernike, centre, diameter)
+
+    flat_actuators = -1.0 * np.dot(controlMatrix, z_amps)
+
+    return flat_actuators
