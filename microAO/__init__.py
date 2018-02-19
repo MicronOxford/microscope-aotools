@@ -299,11 +299,11 @@ def acquire_generator(camera, mirror):
         return data
     return acquire
 
-def calibrate(acquire, mirror, camera, numPokeSteps, centre, diameter):
+def calibrate(acquire, mirror, camera, centre, diameter, numPokeSteps = 10):
     numActuators = mirror.n_actuators()
     nzernike = numActuators
 
-    pokeSteps = np.linspace(0,1,numPokeSteps)
+    pokeSteps = np.linspace(0.5,0.95,numPokeSteps)
     noImages = numPokeSteps*nzernike
 
     actuator_values = np.zeros((noImages,nzernike))
@@ -320,15 +320,30 @@ def calibrate(acquire, mirror, camera, numPokeSteps, centre, diameter):
 
     return controlMatrix, flat_values
 
-def flatten(acquire, controlMatrix, centre, diameter):
+def flatten(acquire, mirror, controlMatrix, centre, diameter, iterations = 1):
     numActuators, nzernike = np.shape(controlMatrix)
 
     mask = makemask(diameter)
     interferogram = acquire()
     fft_filter = getfourierfilter(interferogram, mask, centre, diameter)
 
-    z_amps = getzernikemodes(interferogram, mask, fft_filter, nzernike, centre, diameter)
+    flat_actuators = np.zeros(numActuators)
+    previous_flat_actuators = np.zeros(numActuators)
+    z_amps = np.zeros(nzernike)
+    previous_z_amps = np.zeros(nzernike)
 
-    flat_actuators = -1.0 * np.dot(controlMatrix, z_amps)
+    for ii in range(iterations):
+        interferogram = acquire()
+
+        z_amps[:] = getzernikemodes(interferogram, mask, fft_filter, nzernike, centre, diameter)
+        flat_actuators[:] = -1.0 * np.dot(controlMatrix, z_amps)
+
+        mirror.apply_pattern(flat_actuators)
+
+        ##We need some test here for ringing in our solution
+
+        previous_z_amps[:] = z_amps[:]
+        previous_flat_actuators[:] = flat_actuators[:]
+
 
     return flat_actuators
