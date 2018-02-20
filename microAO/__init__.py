@@ -28,8 +28,6 @@ import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
 
-
-    return fft_filter
 def bin_ndarray(ndarray, new_shape, operation='sum'):
     """
 
@@ -145,6 +143,7 @@ def getfourierfilter(image, mask, middle, diameter, region=30):
     gauss = gauss*(gauss>(np.max(x)*np.min(x)))
 
     fft_filter[(maxpoint[1]-(gauss_dim/2)):(maxpoint[1]+(gauss_dim/2)),(maxpoint[0]-(gauss_dim/2)):(maxpoint[0]+(gauss_dim/2))] = gauss
+    return fft_filter
 
 def phaseunwrap(image, mask, fft_filter, middle, diameter):
     #Convert image to array and float
