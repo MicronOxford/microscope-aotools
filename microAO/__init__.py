@@ -193,9 +193,8 @@ def phaseunwrap(image, mask, fft_filter, middle, diameter):
     return out
 
 
-def getzernikemodes(image, mask, fft_filter, noZernikeModes, middle, diameter, resize_dim = 128):
-    #Unwrap phase and resize image
-    image_unwrap = phaseunwrap(image, mask, fft_filter, middle = middle, diameter = diameter)
+def getzernikemodes(image_unwrap, noZernikeModes, resize_dim = 128):
+    #Resize image
     original_dim = int(np.shape(image_unwrap)[0])
     while original_dim%resize_dim is not 0:
         resize_dim -= 1
@@ -224,6 +223,7 @@ def createcontrolmatrix(imageStack, numActuators, noZernikeModes, centre, diamet
     except:
         print "Error: Expected numpy.ndarray input data type, got %s" %type(imageStack)
     [noImages, x, y] = np.shape(imageStack)
+    image_unwrap = np.shape((x,y))
     numPokeSteps = noImages/numActuators
     pokeSteps = np.linspace(-0.6,0.6,numPokeSteps)
     zernikeModeAmp = np.zeros((numPokeSteps,noZernikeModes))
@@ -243,8 +243,8 @@ def createcontrolmatrix(imageStack, numActuators, noZernikeModes, centre, diamet
         for jj in range(numPokeSteps):
             curr_calc = (ii * numPokeSteps) + jj + 1
             print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
-            zernikeModeAmp[jj,:] = getzernikemodes(imageStack[((ii * numPokeSteps) + jj),:,:], mask, fft_filter,
-                                                   noZernikeModes, middle=centre, diameter=diameter)
+            image_unwrap = phaseunwrap(imageStack[((ii * numPokeSteps) + jj),:,:], mask, fft_filter, middle=centre, diameter=diameter)
+            zernikeModeAmp[jj,:] = getzernikemodes(image_unwrap, noZernikeModes)
             all_zernikeModeAmp[((ii * numPokeSteps) + jj),:] = zernikeModeAmp[jj,:]
             print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
 
