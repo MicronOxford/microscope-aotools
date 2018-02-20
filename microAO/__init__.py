@@ -345,5 +345,4 @@ def flatten(acquire, mirror, controlMatrix, centre, diameter, iterations = 1):
         previous_z_amps[:] = z_amps[:]
         previous_flat_actuators[:] = flat_actuators[:]
 
-
     return flat_actuators
