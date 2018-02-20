@@ -28,6 +28,8 @@ import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
 
+
+    return fft_filter
 def bin_ndarray(ndarray, new_shape, operation='sum'):
     """
 
@@ -144,8 +146,6 @@ def getfourierfilter(image, mask, middle, diameter, region=30):
 
     fft_filter[(maxpoint[1]-(gauss_dim/2)):(maxpoint[1]+(gauss_dim/2)),(maxpoint[0]-(gauss_dim/2)):(maxpoint[0]+(gauss_dim/2))] = gauss
 
-    return fft_filter
-
 def phaseunwrap(image, mask, fft_filter, middle, diameter):
     #Convert image to array and float
     data = np.asarray(image)
@@ -211,29 +211,6 @@ def getzernikemodes(image, mask, fft_filter, noZernikeModes, middle, diameter, r
     coef = np.asarray(zcoeffs_dbl)
     return coef
 
-def getflatfile(flat_image, mask, fft_filter, numActuators, centre, diameter, numPokeSteps, pokeSteps, controlMatrix,
-                noZernikeModes):
-    #Get flat file
-    flat_actuators =np.zeros(numActuators)
-    flat_actuators[0] = -1
-
-    #Acquire Zernike modes
-    zernikeModeAmp = getzernikemodes(flat_image[:,:], mask, fft_filter, noZernikeModes, middle=centre, diameter=diameter)
-
-    #Obtain flat values
-    flat_actuators = flat_actuators - np.dot(controlMatrix, zernikeModeAmp)
-    #Make sure we can't values that the DM cannot accept.
-    for ii in range(numActuators):
-                    if flat_actuators[ii] > 1:
-                        flat_actuators[ii] = 1
-                    elif flat_actuators[ii] < -1:
-                        flat_actuators[ii] = -1
-                    else:
-                        #Value between 1 and -1, so do nothing
-                        pass
-    return flat_actuators
-
-
 def createcontrolmatrix(imageStack, numActuators, noZernikeModes, centre, diameter):
 
     slopes = np.zeros(noZernikeModes)
@@ -286,11 +263,7 @@ def createcontrolmatrix(imageStack, numActuators, noZernikeModes, centre, diamet
     print("Computing Control Matrix")
     controlMatrix = np.linalg.pinv(C_mat)
     print("Control Matrix computed")
-    print("Computing flat values")
-    flat_values = getflatfile(imageStack[0,:,:], mask, fft_filter, numActuators, centre,
-                              diameter, numPokeSteps, pokeSteps, controlMatrix, noZernikeModes)
-    print("Flat values computed")
-    return controlMatrix, flat_values
+    return controlMatrix
 
 def acquire_generator(camera, mirror):
     def acquire(actuator_values):
