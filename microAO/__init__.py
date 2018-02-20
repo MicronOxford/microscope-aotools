@@ -37,15 +37,34 @@ class AdaptiveOpticsDevice(object):
     def __init__(self, mirror, camera):
         self.mirror = mirror
         self.camera = camera
-        self.acquire = self.acquire_generator()
+        self.ROI_params, self.acquire, self.set_roi = self.acquire_generator()
+
+        #Check that ROI_params contains a tuple of a tuple and an int
+        try:
+            assert type(self.ROI_params[0]) == tuple
+        except:
+            raise Exception
+
+        try:
+            assert type(self.ROI_params[1]) == int
+        except:
+            raise Exception
+
         return
 
     def acquire_generator(self):
+        ROI_params = self.camera.get_ROI
+
         def acquire(actuator_values):
             self.mirror.apply_pattern(actuator_values)
             data = self.camera.trigger_and_wait()
             return data
-        return acquire
+
+        def set_roi(new_ROI):
+            self.camera.set_roi(new_ROI)
+            return
+
+        return ROI_params, acquire, set_roi
 
     def bin_ndarray(self, ndarray, new_shape, operation='sum'):
         """
