@@ -28,43 +28,70 @@ import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
 
+from microscope.devices import DeformableMirror as mirror
+from microscope.devices import CameraDevice as camera
+
+class AcquireGenerator(camera):
+    def __init__(self):
+
+        self.ROI_params = ((500, 500), 250)
+        self.mask = self.makemask(self.ROI_params[1])
+        return
+
+    def set_roi(self, new_ROI):
+        self.ROI_params = new_ROI
+        self.mask = self.makemask(self.ROI_params[1])
+        return
+
+    def makemask(self, diameter):
+        radius = diameter/2
+        mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
+        return mask
+
+    def acquire(self):
+        self.soft_trigger
+        data = self._fetch_data()
+        return data
+
+    def acquire_wp(self, actuator_values):
+        self.mirror.apply_pattern(actuator_values)
+        self.soft_trigger
+        data = self._fetch_data()
+        return data
+
+    def acquire_wm(self):
+        self.soft_trigger
+        data = self._fetch_data()
+        data_cropped = np.zeros((self.ROI_params[1],self.ROI_params[1]), dtype=float)
+        data_cropped = data[self.ROI_params[0][0]-int(np.floor(self.ROI_params[1]/2.0)):
+                            self.ROI_params[0][0]+int(np.ceil(self.ROI_params[1]/2.0)),
+                            self.ROI_params[0][1]-int(np.floor(self.ROI_params[1]/2.0)):
+                            self.ROI_params[0][1]+int(np.ceil(self.ROI_params[1]/2.0))]
+        data_cropped = data_cropped * self.mask
+        return data_cropped
+
+    def acquire_wpm(self, actuator_values):
+        self.mirror.apply_pattern(actuator_values)
+        self.soft_trigger
+        data = self._fetch_data()
+        data_cropped = np.zeros((self.ROI_params[1],self.ROI_params[1]), dtype=float)
+        data_cropped = data[self.ROI_params[0][0]-int(np.floor(self.ROI_params[1]/2.0)):
+                            self.ROI_params[0][0]+int(np.ceil(self.ROI_params[1]/2.0)),
+                            self.ROI_params[0][1]-int(np.floor(self.ROI_params[1]/2.0)):
+                            self.ROI_params[0][1]+int(np.ceil(self.ROI_params[1]/2.0))]
+        data_cropped = data_cropped * self.mask
+        return data_cropped
+
 class AdaptiveOpticsDevice(object):
     """Class for the adaptive optics device
 
     This class requires a mirror and a camera. Everything else is generated
     on or after __init__"""
 
-    def __init__(self, mirror, camera):
+    def __init__(self, mirror):
         self.mirror = mirror
-        self.camera = camera
-        self.ROI_params, self.acquire, self.set_roi = self.acquire_generator()
-
-        #Check that ROI_params contains a tuple of a tuple and an int
-        try:
-            assert type(self.ROI_params[0]) == tuple
-        except:
-            raise Exception
-
-        try:
-            assert type(self.ROI_params[1]) == int
-        except:
-            raise Exception
-
+        self.acquire_function = AcquireGenerator()
         return
-
-    def acquire_generator(self):
-        ROI_params = self.camera.get_ROI
-
-        def acquire(actuator_values):
-            self.mirror.apply_pattern(actuator_values)
-            data = self.camera.trigger_and_wait()
-            return data
-
-        def set_roi(new_ROI):
-            self.camera.set_roi(new_ROI)
-            return
-
-        return ROI_params, acquire, set_roi
 
     def bin_ndarray(self, ndarray, new_shape, operation='sum'):
         """
@@ -117,11 +144,6 @@ class AdaptiveOpticsDevice(object):
         mysum2 = np.sum((myxx2*myim).ravel())
         mymass = np.sum(myim.ravel())
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
-
-    def makemask(self, diameter):
-        radius = diameter/2
-        mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
-        return mask
 
     def getfourierfilter(self, image, mask, middle, diameter, region=30):
         #Convert image to array and float
