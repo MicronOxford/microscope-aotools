@@ -22,6 +22,7 @@ import unittest
 
 import numpy
 import six
+import aotools
 
 import microscope.testsuite.devices as dummies
 
@@ -30,3 +31,33 @@ class TestAOFunctions(unittest.TestCase):
     self.planned_n_actuators = 10
     self.pattern = numpy.zeros((self.planned_n_actuators))
     self.dm = dummies.TestDeformableMirror(self.planned_n_actuators)
+    self.cam = dummies.TestCamera
+
+  def test_applying_pattern(self):
+    ## This mainly checks the implementation of the dummy device.  It
+    ## is not that important but it is the basis to trust the other
+    ## tests wich will actually test the base class.
+    self.pattern[:] = 0.2
+    self.dm.apply_pattern(self.pattern)
+    numpy.testing.assert_array_equal(self.dm._current_pattern, self.pattern)
+
+  def test_make(self):
+    pass
+
+  def test_fourier_filter(self):
+    pass
+
+  def test_phase_unwrap(self):
+    pass
+
+  def test_aqcuire_zernike_modes(self):
+    pass
+
+  def test_calibrate(self):
+    pass
+
+  def test_flatten(self):
+    pass
+
+if __name__ == '__main__':
+    unittest.main()
