@@ -61,7 +61,7 @@ class AdaptiveOpticsDevice(Device):
             assert self.mask is not None
         except:
             raise Exception("Mask construction failed")
-        return 
+        return
 
     def makemask(self, radius):
         diameter = radius * 2
@@ -194,20 +194,28 @@ class AdaptiveOpticsDevice(Device):
         fft_filter[(maxpoint[1]-(gauss_dim/2)):(maxpoint[1]+(gauss_dim/2)),(maxpoint[0]-(gauss_dim/2)):(maxpoint[0]+(gauss_dim/2))] = gauss
         return fft_filter
 
-    def phaseunwrap(self, image, mask, fft_filter, middle, diameter):
+    def phaseunwrap(self):
+        #Ensure an ROI is defined so a masked image is obtained
+        try:
+            assert self.roi is not None
+        except:
+            raise Exception("No region of interest selected. Please select a region of interest")
+
+        #Ensure a Fourier filter has been constructed
+        if self.fftfilter is not None:
+            pass
+        else:
+            self.fftfilter = self.getfourierfilter()
+
+        image = self.acquire()
+
         #Convert image to array and float
         data = np.asarray(image)
         data = data[::-1]
         data = data.astype(float)
 
-        #Mask image to remove extraneous data from edges
-        data_cropped = np.zeros((diameter,diameter), dtype=float)
-        data_cropped = data[middle[0]-int(np.floor(diameter/2.0)):middle[0]+int(np.ceil(diameter/2.0)),middle[1]-int(
-            np.floor(diameter/2.0)):middle[1]+int(np.ceil(diameter/2.0))]
-        data_cropped = data_cropped * mask
-
         #Apply tukey window
-        fringes = np.fft.fftshift(data_cropped)
+        fringes = np.fft.fftshift(data)
         tukey_window = tukey(fringes.shape[0], .10, True)
         tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1)*tukey_window.reshape(-1, 1))
         fringes_tukey = fringes * tukey_window
@@ -216,12 +224,12 @@ class AdaptiveOpticsDevice(Device):
         fftarray = np.fft.fft2(fringes_tukey)
 
         #Apply Fourier filter
-        M = np.fft.fftshift(fft_filter)
+        M = np.fft.fftshift(self.fftfilter)
         fftarray_filt = fftarray * M
         fftarray_filt = np.fft.fftshift(fftarray_filt)
 
         #Roll data to the centre
-        g0, g1 = self.mgcentroid(fft_filter) - np.round(fftarray_filt.shape[0]//2)
+        g0, g1 = self.mgcentroid(self.fftfilter) - np.round(fftarray_filt.shape[0]//2)
         fftarray_filt = np.roll(fftarray_filt, -g0, axis=1)
         fftarray_filt = np.roll(fftarray_filt, -g1, axis=0)
 
@@ -234,7 +242,7 @@ class AdaptiveOpticsDevice(Device):
         phaseorder1 = np.arctan2(complex_phase.imag,complex_phase.real)
 
         #Mask out edge region to allow unwrap to only use correct region
-        phaseorder1mask = ma.masked_where(mask == 0,phaseorder1)
+        phaseorder1mask = ma.masked_where(self.mask == 0,phaseorder1)
 
         #Perform unwrap
         phaseorder1unwrap = unwrap_phase(phaseorder1mask)
