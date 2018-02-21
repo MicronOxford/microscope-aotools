@@ -44,6 +44,7 @@ class AdaptiveOpticsDevice(Device):
         self.camera = DataClient(camera_uri)
         # Deformable mirror device.
         self.mirror = Client(mirror_uri)
+        self.numActuators = self.mirror.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
@@ -194,7 +195,7 @@ class AdaptiveOpticsDevice(Device):
         fft_filter[(maxpoint[1]-(gauss_dim/2)):(maxpoint[1]+(gauss_dim/2)),(maxpoint[0]-(gauss_dim/2)):(maxpoint[0]+(gauss_dim/2))] = gauss
         return fft_filter
 
-    def phaseunwrap(self):
+    def phaseunwrap(self, image = None):
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
@@ -207,7 +208,8 @@ class AdaptiveOpticsDevice(Device):
         else:
             self.fftfilter = self.getfourierfilter()
 
-        image = self.acquire()
+        if image is None:
+            image = self.acquire()
 
         #Convert image to array and float
         data = np.asarray(image)
@@ -266,7 +268,18 @@ class AdaptiveOpticsDevice(Device):
         coef = np.asarray(zcoeffs_dbl)
         return coef
 
-    def createcontrolmatrix(self, imageStack, numActuators, noZernikeModes, centre, diameter):
+    def createcontrolmatrix(self, imageStack, noZernikeModes):
+        #Ensure an ROI is defined so a masked image is obtained
+        try:
+            assert self.roi is not None
+        except:
+            raise Exception("No region of interest selected. Please select a region of interest")
+
+        #Ensure a Fourier filter has been constructed
+        if self.fftfilter is not None:
+            pass
+        else:
+            self.fftfilter = self.getfourierfilter()
 
         slopes = np.zeros(noZernikeModes)
         intercepts = np.zeros(noZernikeModes)
@@ -281,26 +294,23 @@ class AdaptiveOpticsDevice(Device):
             print "Error: Expected numpy.ndarray input data type, got %s" %type(imageStack)
         [noImages, x, y] = np.shape(imageStack)
         image_unwrap = np.shape((x,y))
-        numPokeSteps = noImages/numActuators
+        numPokeSteps = noImages/self.numActuators
         pokeSteps = np.linspace(-0.6,0.6,numPokeSteps)
         zernikeModeAmp = np.zeros((numPokeSteps,noZernikeModes))
-        C_mat = np.zeros((noZernikeModes,numActuators))
+        C_mat = np.zeros((noZernikeModes,self.numActuators))
         all_zernikeModeAmp = np.ones((noImages,noZernikeModes))
-        offsets = np.zeros((noZernikeModes,numActuators))
-        P_tests = np.zeros((noZernikeModes,numActuators))
-
-        mask = self.makemask(diameter)
-        fft_filter = self.getfourierfilter(imageStack[0,:,:], mask, middle=centre, diameter=diameter)
+        offsets = np.zeros((noZernikeModes,self.numActuators))
+        P_tests = np.zeros((noZernikeModes,self.numActuators))
 
         # Here the each image in the image stack (read in as np.array), centre and4 diameter should be passed to the unwrap
         # function to obtain the Zernike modes for each one. For the moment a set of random Zernike modes are generated.
-        for ii in range(numActuators):
+        for ii in range(self.numActuators):
 
             #Get the amplitudes of each Zernike mode for the poke range of one actuator
             for jj in range(numPokeSteps):
                 curr_calc = (ii * numPokeSteps) + jj + 1
                 print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
-                image_unwrap = self.phaseunwrap(imageStack[((ii * numPokeSteps) + jj),:,:], mask, fft_filter, middle=centre, diameter=diameter)
+                image_unwrap = self.phaseunwrap(imageStack[((ii * numPokeSteps) + jj),:,:])
                 zernikeModeAmp[jj,:] = self.getzernikemodes(image_unwrap, noZernikeModes)
                 all_zernikeModeAmp[((ii * numPokeSteps) + jj),:] = zernikeModeAmp[jj,:]
                 print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
@@ -321,9 +331,8 @@ class AdaptiveOpticsDevice(Device):
         print("Control Matrix computed")
         return controlMatrix
 
-    def calibrate(self, acquire, mirror, camera, centre, diameter, numPokeSteps = 10):
-        numActuators = mirror.n_actuators()
-        nzernike = numActuators
+    def calibrate(self, acquire, numPokeSteps = 10):
+        nzernike = self.numActuators
 
         pokeSteps = np.linspace(0.5,0.95,numPokeSteps)
         noImages = numPokeSteps*nzernike
@@ -333,36 +342,51 @@ class AdaptiveOpticsDevice(Device):
             for jj in range(numPokeSteps):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
 
-        (width, height) = camera.get_sensor_shape()
+        (width, height) =np.shape(np.asarray(self.acquire()))
         imStack = np.zeros(noImages, height, width)
         for im in range(noImages):
-            imStack[im, :, :] = acquire(actuator_values[im])
+            self.mirror.apply_pattern(actuator_values[im])
+            imStack[im, :, :] = acquire()
 
-        controlMatrix = self.createcontrolmatrix(imStack, numActuators, nzernike, centre, diameter)
+        controlMatrix = self.createcontrolmatrix(imStack, nzernike)
 
         return controlMatrix
 
-    def flatten_phase(self, acquire, mirror, controlMatrix, centre, diameter, iterations = 1):
-        numActuators, nzernike = np.shape(controlMatrix)
+    def flatten_phase(self, mirror, controlMatrix, iterations = 1):
+        #Ensure an ROI is defined so a masked image is obtained
+        try:
+            assert self.roi is not None
+        except:
+            raise Exception("No region of interest selected. Please select a region of interest")
 
-        mask = self.makemask(diameter)
-        interferogram = acquire()
-        fft_filter = self.getfourierfilter(interferogram, mask, centre, diameter)
+        #Ensure a Fourier filter has been constructed
+        if self.fftfilter is not None:
+            pass
+        else:
+            self.fftfilter = self.getfourierfilter()
+
+        numActuators, nzernike = np.shape(controlMatrix)
+        try:
+            assert numActuators == self.numActuators
+        except:
+            raise Exception("Control Matrix dimension 0 axis and number of "
+                            "actuators do not match.")
 
         flat_actuators = np.zeros(numActuators)
+        self.mirror.apply_pattern(flat_actuators)
         previous_flat_actuators = np.zeros(numActuators)
+
         z_amps = np.zeros(nzernike)
         previous_z_amps = np.zeros(nzernike)
 
         for ii in range(iterations):
-            interferogram = acquire()
+            interferogram = self.acquire()
 
-            interferogram_unwrap = unwrap_phase(interferogram, self.mask, self.fourierfiler,
-                                                centre = (self.roi[0],self.roi[1]), diameter = self.roi[2])
+            interferogram_unwrap = self.phaseunwrap(interferogram)
             z_amps[:] = self.getzernikemodes(interferogram_unwrap, nzernike)
             flat_actuators[:] = -1.0 * np.dot(controlMatrix, z_amps)
 
-            mirror.apply_pattern(flat_actuators)
+            self.mirror.apply_pattern(flat_actuators)
 
             ##We need some test here for ringing in our solution
 
