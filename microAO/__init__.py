@@ -46,25 +46,34 @@ class AdaptiveOpticsDevice(Device):
         self.mirror = Client(mirror_uri)
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
+        #Mask for the interferometric data
         self.mask = None
+        #Mask to select phase information
+        self.fftfilter = None
+        #Control Matrix
+        self.controlMatrix = None
 
-    def set_roi(self, x0, y0, r):
-        self.roi = (x0, y0, r)
-        self.mask = self.makemask(r)
 
-    def makemask(self, diameter):
-        radius = diameter/2
+    def set_roi(self, x0, y0, radius):
+        self.roi = (x0, y0, radius)
+        self.mask = self.makemask(radius)
+        try:
+            assert self.mask is not None
+        except:
+            raise Exception("Mask construction failed")
+        return 
+
+    def makemask(self, radius):
+        diameter = radius * 2
         mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
         return mask
 
     def acquire(self):
         data_raw = self.camera.trigger_and_wait()
         if self.roi is not None:
-            data_cropped = np.zeros((self.roi[2],self.roi[2]), dtype=float)
-            data_cropped = data_raw[self.roi[0]-int(np.floor(self.roi[2]/2.0)):
-            self.roi[0]+int(np.ceil(self.roi[2]/2.0)),
-            self.roi[1]-int(np.floor(self.roi[2]/2.0)):
-            self.roi[1]+int(np.ceil(self.roi[2]/2.0))]
+            data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
+            data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
+                       self.roi[1]-self.roi[2]:self.roi[1]+self.roi[2]]
             data = data_cropped * self.mask
         else:
             data = data_raw
@@ -122,20 +131,23 @@ class AdaptiveOpticsDevice(Device):
         mymass = np.sum(myim.ravel())
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
-    def getfourierfilter(self, image, mask, middle, diameter, region=30):
+    def getfourierfilter(self, region=30):
+        #Ensure an ROI is defined so a masked image is obtained
+        try:
+            assert self.roi is not None
+        except:
+            raise Exception("No region of interest selected. Please select a region of interest")
+
+        #Acquire image
+        image = self.acquire()
+
         #Convert image to array and float
         data = np.asarray(image)
         data = data[::-1]
         data = data.astype(float)
 
-        #Mask image to remove extraneous data from edges
-        data_cropped = np.zeros((diameter,diameter), dtype=float)
-        data_cropped = data[middle[0]-int(np.floor(diameter/2.0)):middle[0]+int(np.ceil(diameter/2.0)),middle[1]-int(
-            np.floor(diameter/2.0)):middle[1]+int(np.ceil(diameter/2.0))]
-        data_cropped = data_cropped * mask
-
         #Apply tukey window
-        fringes = np.fft.fftshift(data_cropped)
+        fringes = np.fft.fftshift(data)
         tukey_window = tukey(fringes.shape[0], .10, True)
         tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1)*tukey_window.reshape(-1, 1))
         fringes_tukey = fringes * tukey_window
@@ -318,9 +330,9 @@ class AdaptiveOpticsDevice(Device):
         for im in range(noImages):
             imStack[im, :, :] = acquire(actuator_values[im])
 
-        controlMatrix, flat_values = self.createcontrolmatrix(imStack, numActuators, nzernike, centre, diameter)
+        controlMatrix = self.createcontrolmatrix(imStack, numActuators, nzernike, centre, diameter)
 
-        return controlMatrix, flat_values
+        return controlMatrix
 
     def flatten_phase(self, acquire, mirror, controlMatrix, centre, diameter, iterations = 1):
         numActuators, nzernike = np.shape(controlMatrix)
@@ -337,7 +349,9 @@ class AdaptiveOpticsDevice(Device):
         for ii in range(iterations):
             interferogram = acquire()
 
-            z_amps[:] = self.getzernikemodes(interferogram, mask, fft_filter, nzernike, centre, diameter)
+            interferogram_unwrap = unwrap_phase(interferogram, self.mask, self.fourierfiler,
+                                                centre = (self.roi[0],self.roi[1]), diameter = self.roi[2])
+            z_amps[:] = self.getzernikemodes(interferogram_unwrap, nzernike)
             flat_actuators[:] = -1.0 * np.dot(controlMatrix, z_amps)
 
             mirror.apply_pattern(flat_actuators)
