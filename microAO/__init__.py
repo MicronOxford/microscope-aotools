@@ -28,20 +28,29 @@ import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
 
-from microscope.devices import DeformableMirror as mirror
-from microscope.devices import CameraDevice as camera
+from microscope.devices import Device
+from microscope.clients import Client, DataClient
 
-class AcquireGenerator(camera):
-    def __init__(self):
+class AdaptiveOpticsDevice(Device):
+    """Class for the adaptive optics device
 
-        self.ROI_params = ((500, 500), 250)
-        self.mask = self.makemask(self.ROI_params[1])
-        return
+    This class requires a mirror and a camera. Everything else is generated
+    on or after __init__"""
 
-    def set_roi(self, new_ROI):
-        self.ROI_params = new_ROI
-        self.mask = self.makemask(self.ROI_params[1])
-        return
+    def __init__(self, camera_uri, mirror_uri):
+        # Init will fail if devices it depends on aren't already running, but
+        # deviceserver should retry automatically.
+        # Camera or wavefront sensor. Must support soft_trigger for now.
+        self.camera = DataClient(camera_uri)
+        # Deformable mirror device.
+        self.mirror = Client(mirror_uri)
+        # Region of interest (i.e. pupil offset and radius) on camera.
+        self.roi = None
+        self.mask = None
+
+    def set_roi(self, x0, y0, r):
+        self.roi = (x0, y0, r)
+        self.mask = self.makemask(r)
 
     def makemask(self, diameter):
         radius = diameter/2
@@ -49,49 +58,17 @@ class AcquireGenerator(camera):
         return mask
 
     def acquire(self):
-        self.soft_trigger
-        data = self._fetch_data()
+        data_raw = self.camera.trigger_and_wait()
+        if self.roi is not None:
+            data_cropped = np.zeros((self.roi[2],self.roi[2]), dtype=float)
+            data_cropped = data_raw[self.roi[0]-int(np.floor(self.roi[2]/2.0)):
+            self.roi[0]+int(np.ceil(self.roi[2]/2.0)),
+            self.roi[1]-int(np.floor(self.roi[2]/2.0)):
+            self.roi[1]+int(np.ceil(self.roi[2]/2.0))]
+            data = data_cropped * self.mask
+        else:
+            data = data_raw
         return data
-
-    def acquire_wp(self, actuator_values):
-        self.mirror.apply_pattern(actuator_values)
-        self.soft_trigger
-        data = self._fetch_data()
-        return data
-
-    def acquire_wm(self):
-        self.soft_trigger
-        data = self._fetch_data()
-        data_cropped = np.zeros((self.ROI_params[1],self.ROI_params[1]), dtype=float)
-        data_cropped = data[self.ROI_params[0][0]-int(np.floor(self.ROI_params[1]/2.0)):
-                            self.ROI_params[0][0]+int(np.ceil(self.ROI_params[1]/2.0)),
-                            self.ROI_params[0][1]-int(np.floor(self.ROI_params[1]/2.0)):
-                            self.ROI_params[0][1]+int(np.ceil(self.ROI_params[1]/2.0))]
-        data_cropped = data_cropped * self.mask
-        return data_cropped
-
-    def acquire_wpm(self, actuator_values):
-        self.mirror.apply_pattern(actuator_values)
-        self.soft_trigger
-        data = self._fetch_data()
-        data_cropped = np.zeros((self.ROI_params[1],self.ROI_params[1]), dtype=float)
-        data_cropped = data[self.ROI_params[0][0]-int(np.floor(self.ROI_params[1]/2.0)):
-                            self.ROI_params[0][0]+int(np.ceil(self.ROI_params[1]/2.0)),
-                            self.ROI_params[0][1]-int(np.floor(self.ROI_params[1]/2.0)):
-                            self.ROI_params[0][1]+int(np.ceil(self.ROI_params[1]/2.0))]
-        data_cropped = data_cropped * self.mask
-        return data_cropped
-
-class AdaptiveOpticsDevice(object):
-    """Class for the adaptive optics device
-
-    This class requires a mirror and a camera. Everything else is generated
-    on or after __init__"""
-
-    def __init__(self, mirror):
-        self.mirror = mirror
-        self.acquire_function = AcquireGenerator()
-        return
 
     def bin_ndarray(self, ndarray, new_shape, operation='sum'):
         """
