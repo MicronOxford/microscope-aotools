@@ -241,7 +241,7 @@ class AdaptiveOpticsDevice(Device):
 
         #Find phase data by taking 2d arctan of imaginary and real parts
         phaseorder1 = np.zeros(complex_phase.shape)
-        phaseorder1 = np.arctan2(complex_phase.imag,complex_phase.real)
+        phaseorder1[:,:] = np.arctan2(complex_phase.imag,complex_phase.real)
 
         #Mask out edge region to allow unwrap to only use correct region
         phaseorder1mask = ma.masked_where(self.mask == 0,phaseorder1)
