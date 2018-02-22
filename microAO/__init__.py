@@ -66,8 +66,8 @@ class AdaptiveOpticsDevice(Device):
 
     def makemask(self, radius):
         diameter = radius * 2
-        mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
-        return mask
+        self.mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
+        return self.mask
 
     def acquire(self):
         data_raw = self.camera.trigger_and_wait()
@@ -132,18 +132,15 @@ class AdaptiveOpticsDevice(Device):
         mymass = np.sum(myim.ravel())
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
-    def getfourierfilter(self, region=30):
+    def getfourierfilter(self, test_image, region=30, test = "No"):
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        #Acquire image
-        image = self.acquire()
-
         #Convert image to array and float
-        data = np.asarray(image)
+        data = np.asarray(test_image)
         data = data[::-1]
         data = data.astype(float)
 
@@ -206,7 +203,8 @@ class AdaptiveOpticsDevice(Device):
         if self.fftfilter is not None:
             pass
         else:
-            self.fftfilter = self.getfourierfilter()
+            test_image = self.acquire()
+            self.fftfilter = self.getfourierfilter(test_image)
 
         if image is None:
             image = self.acquire()
@@ -279,7 +277,8 @@ class AdaptiveOpticsDevice(Device):
         if self.fftfilter is not None:
             pass
         else:
-            self.fftfilter = self.getfourierfilter()
+            test_image = self.acquire()
+            self.fftfilter = self.getfourierfilter(test_image)
 
         slopes = np.zeros(noZernikeModes)
         intercepts = np.zeros(noZernikeModes)
@@ -363,7 +362,8 @@ class AdaptiveOpticsDevice(Device):
         if self.fftfilter is not None:
             pass
         else:
-            self.fftfilter = self.getfourierfilter()
+            test_image = self.acquire()
+            self.fftfilter = self.getfourierfilter(test_image)
 
         numActuators, nzernike = np.shape(controlMatrix)
         try:
