@@ -395,18 +395,19 @@ class AdaptiveOpticsDevice(Device):
 
         return flat_actuators
 
-    def set_phase(self, zernike_modes):
-        if int(np.shape(zernike_modes)[0]) < int(np.shape(self.controlMatrix)[1]):
-            pad_length = int(np.shape(zernike_modes)[0]) - int(np.shape(self.controlMatrix)[1])
-            np.pad(zernike_modes, (0,pad_length), 'constant')
-        elif int(np.shape(zernike_modes)[0]) > int(np.shape(self.controlMatrix)[1]):
-            zernike_modes = zernike_modes[:int(np.shape(self.controlMatrix)[1])]
+    def set_phase(self, applied_z_modes):
+        if int(np.shape(applied_z_modes)[0]) < int(np.shape(self.controlMatrix)[1]):
+            pad_length = int(np.shape(applied_z_modes)[0]) - int(np.shape(self.controlMatrix)[1])
+            np.pad(applied_z_modes, (0,pad_length), 'constant')
+        elif int(np.shape(applied_z_modes)[0]) > int(np.shape(self.controlMatrix)[1]):
+            applied_z_modes = applied_z_modes[:int(np.shape(self.controlMatrix)[1])]
         else:
             pass
 
         actuator_pos = np.zeros(self.numActuators)
-        actuator_pos[:] = np.dot(self.controlMatrix, zernike_modes)
+        actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes)
 
         self.mirror.apply_pattern(actuator_pos)
 
         return
+
