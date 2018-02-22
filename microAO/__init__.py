@@ -384,7 +384,7 @@ class AdaptiveOpticsDevice(Device):
 
             interferogram_unwrap = self.phaseunwrap(interferogram)
             z_amps[:] = self.getzernikemodes(interferogram_unwrap, nzernike)
-            flat_actuators[:] = -1.0 * np.dot(controlMatrix, z_amps)
+            flat_actuators[:] = -1.0 * np.dot(self.controlMatrix, z_amps)
 
             self.mirror.apply_pattern(flat_actuators)
 
@@ -394,3 +394,19 @@ class AdaptiveOpticsDevice(Device):
             previous_flat_actuators[:] = flat_actuators[:]
 
         return flat_actuators
+
+    def set_phase(self, zernike_modes):
+        if int(np.shape(zernike_modes)[0]) < int(np.shape(self.controlMatrix)[1]):
+            pad_length = int(np.shape(zernike_modes)[0]) - int(np.shape(self.controlMatrix)[1])
+            np.pad(zernike_modes, (0,pad_length), 'constant')
+        elif int(np.shape(zernike_modes)[0]) > int(np.shape(self.controlMatrix)[1]):
+            zernike_modes = zernike_modes[:int(np.shape(self.controlMatrix)[1])]
+        else:
+            pass
+
+        actuator_pos = np.zeros(self.numActuators)
+        actuator_pos[:] = np.dot(self.controlMatrix, zernike_modes)
+
+        self.mirror.apply_pattern(actuator_pos)
+
+        return
