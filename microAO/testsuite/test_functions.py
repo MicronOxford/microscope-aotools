@@ -73,7 +73,24 @@ class TestAOFunctions(unittest.TestCase):
     self.mask = mask
 
   def test_fourier_filter(self):
-    pass
+    self.true_x_freq = 350
+    self.true_y_freq = 0
+    self.test_inter = self.__construct_interferogram(stripe_frequency_x=
+                    self.true_x_freq,stripe_frequency_y=self.true_y_freq)
+    test_fft_filter = self.AO.getfourierfilter(self.test_inter)
+
+    fft_filter = np.zeros(np.shape(self.test_inter))
+    gauss_dim = int(self.test_inter.shape[0]*(5.0/16.0))
+    FWHM = int((3.0/8.0) * gauss_dim)
+    stdv = FWHM/np.sqrt(8 * np.log(2))
+    x = np.gaussian(gauss_dim,stdv)
+    gauss = np.outer(x,x.T)
+    gauss = gauss*(gauss>(np.max(x)*np.min(x)))
+
+    fft_filter[(self.radius-(gauss_dim/2)):(self.radius+(gauss_dim/2)),
+    (self.radius+10-(gauss_dim/2)):(self.radius+10+(gauss_dim/2))] = gauss
+    np.testing.assert_array_equal(test_fft_filter,fft_filter)
+    self.fft_filter = test_fft_filter
 
   def test_mgcentroid(self):
     pass
