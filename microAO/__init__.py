@@ -132,7 +132,7 @@ class AdaptiveOpticsDevice(Device):
         mymass = np.sum(myim.ravel())
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
-    def getfourierfilter(self, test_image, region=30, test = "No"):
+    def getfourierfilter(self, test_image, region=30):
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
@@ -182,7 +182,7 @@ class AdaptiveOpticsDevice(Device):
             maxpoint[1] = maxpoint[1] - 25 + int(CoM[0,0])
 
         fft_filter = np.zeros(np.shape(fftarray))
-        gauss_dim = min(int(image.shape[0]*(5.0/16.0)), (maxpoint[0]-maxpoint[0]%2), (maxpoint[1]-maxpoint[1]%2))
+        gauss_dim = min(int(data.shape[0]*(5.0/16.0)), (maxpoint[0]-maxpoint[0]%2), (maxpoint[1]-maxpoint[1]%2))
         FWHM = int((3.0/8.0) * gauss_dim)
         stdv = FWHM/np.sqrt(8 * np.log(2))
         x = gaussian(gauss_dim,stdv)
@@ -211,8 +211,6 @@ class AdaptiveOpticsDevice(Device):
 
         #Convert image to array and float
         data = np.asarray(image)
-        data = data[::-1]
-        data = data.astype(float)
 
         #Apply tukey window
         fringes = np.fft.fftshift(data)
