@@ -98,7 +98,16 @@ class TestAOFunctions(unittest.TestCase):
     assert abs(g1) == range(self.true_x_freq-2, self.true_x_freq+3)
 
   def test_phase_unwrap(self):
-    pass
+    zcoeffs_in = np.zeros(self.self.planned_n_actuators)
+    zcoeffs_in[2] = 1
+    aberration_angle = aotools.phaseFromZernikes(zcoeffs_in, self.test_inter.shape[1])
+    aberration_phase = (1 + np.cos(aberration_angle) + (1j * np.sin(aberration_angle))) * self.mask
+    test_phase = self.test_inter * aberration_phase
+    aberration = unwrap_phase(np.arctan2(aberration_phase.imag,aberration_phase.real))
+
+    test_aberration = self.AO.phaseunwrap(test_phase)
+    assert ((np.sum(abs(test_aberration)) - np.sum(abs(aberration)))/
+            (np.shape(aberration)[0]* np.shape(aberration)[1])) < 0.001
 
   def test_aqcuire_zernike_modes(self):
     pass
