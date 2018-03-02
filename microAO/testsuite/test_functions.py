@@ -93,7 +93,9 @@ class TestAOFunctions(unittest.TestCase):
     self.fft_filter = test_fft_filter
 
   def test_mgcentroid(self):
-    pass
+    g0, g1 = self.AO.mgcentroid(self.fft_filter) - np.round(self.fft_filter.shape[0]//2)
+    assert abs(g0) == range(self.true_x_freq-2, self.true_x_freq+3)
+    assert abs(g1) == range(self.true_x_freq-2, self.true_x_freq+3)
 
   def test_phase_unwrap(self):
     pass
