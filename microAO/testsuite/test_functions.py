@@ -20,18 +20,40 @@
 
 import unittest
 
-import numpy
+import numpy as np
 import six
 import aotools
+import microAO
+from skimage.restoration import unwrap_phase
 
 import microscope.testsuite.devices as dummies
 
 class TestAOFunctions(unittest.TestCase):
+  def __construct_interferogram(self, stripe_frequency_x, stripe_frequency_y,
+                                interferogram_shape = (2048,2048)):
+    mid_y = int(interferogram_shape[0]/2)
+    mid_x = int(interferogram_shape[1]/2)
+    stripes_ft = np.zeros(interferogram_shape)
+    stripes_ft[mid_y-stripe_frequency_y, mid_x-stripe_frequency_x] = 25
+    stripes_ft[mid_y, mid_x] = 50
+    stripes_ft[mid_y+stripe_frequency_y, mid_x+stripe_frequency_x] = 25
+
+    stripes_shift = np.fft.fftshift(stripes_ft)
+    stripes = np.fft.fft2(stripes_shift).real
+
+    radius = mid_x
+    diameter = radius * 2
+    mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
+
+    test_interferogram = stripes * mask
+    return test_interferogram
+
   def setUp(self):
     self.planned_n_actuators = 10
-    self.pattern = numpy.zeros((self.planned_n_actuators))
+    self.pattern = np.zeros((self.planned_n_actuators))
     self.dm = dummies.TestDeformableMirror(self.planned_n_actuators)
     self.cam = dummies.TestCamera
+    self.AO = microAO.AdaptiveOpticsDevice()
 
   def test_applying_pattern(self):
     ## This mainly checks the implementation of the dummy device.  It
@@ -39,12 +61,21 @@ class TestAOFunctions(unittest.TestCase):
     ## tests wich will actually test the base class.
     self.pattern[:] = 0.2
     self.dm.apply_pattern(self.pattern)
-    numpy.testing.assert_array_equal(self.dm._current_pattern, self.pattern)
+    np.testing.assert_array_equal(self.dm._current_pattern, self.pattern)
 
-  def test_make(self):
-    pass
+  def test_makemask(self):
+    self.radius = 1024
+    self.diameter = self.radius * 2
+    test_mask = np.sqrt((np.arange(-self.radius,self.radius)**2).reshape((
+        self.diameter,1)) + (np.arange(-self.radius,self.radius)**2)) < self.radius
+    mask = self.AO.makemask(self.radius)
+    np.testing.assert_array_equal(mask, test_mask)
+    self.mask = mask
 
   def test_fourier_filter(self):
+    pass
+
+  def test_mgcentroid(self):
     pass
 
   def test_phase_unwrap(self):
