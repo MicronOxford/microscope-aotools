@@ -110,7 +110,13 @@ class TestAOFunctions(unittest.TestCase):
             (np.shape(aberration)[0]* np.shape(aberration)[1])) < 0.001
 
   def test_aqcuire_zernike_modes(self):
-    pass
+    diameter = 128
+    zcoeffs_in = np.zeros(self.nzernike)
+    zcoeffs_in[2] = 1
+    img = np.zeros((diameter,diameter))
+    img[:,:] = aotools.phaseFromZernikes(zcoeffs_in, diameter)
+
+    
 
   def test_calibrate(self):
     pass
