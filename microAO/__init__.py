@@ -27,6 +27,7 @@ import aotools
 import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
+import logging
 
 from microscope.devices import Device
 from microscope.clients import Client, DataClient
@@ -37,14 +38,14 @@ class AdaptiveOpticsDevice(Device):
     This class requires a mirror and a camera. Everything else is generated
     on or after __init__"""
 
-    def __init__(self, camera_uri, mirror_uri):
+    def __init__(self, camera, mirror):
         # Init will fail if devices it depends on aren't already running, but
         # deviceserver should retry automatically.
         # Camera or wavefront sensor. Must support soft_trigger for now.
-        self.camera = DataClient(camera_uri)
+        self.camera = camera
         # Deformable mirror device.
-        self.mirror = Client(mirror_uri)
-        self.numActuators = self.mirror.n_actuators
+        self.mirror = mirror
+        self.numActuators = self.mirror.n_actuators #FIXME Client
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
@@ -53,6 +54,8 @@ class AdaptiveOpticsDevice(Device):
         self.fft_filter = None
         #Control Matrix
         self.controlMatrix = None
+
+        self._logger = logging.getLogger('dev-null')
 
     def _on_shutdown(self):
         pass
