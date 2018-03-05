@@ -186,7 +186,7 @@ class AdaptiveOpticsDevice(Device):
             maxpoint[0] = maxpoint[0] - 25 + int(CoM[0,1])
             maxpoint[1] = maxpoint[1] - 25 + int(CoM[0,0])
 
-        fft_filter = np.zeros(np.shape(fftarray))
+        self.fft_filter = np.zeros(np.shape(fftarray))
         gauss_dim = min(int(data.shape[0]*(5.0/16.0)), (maxpoint[0]-maxpoint[0]%2), (maxpoint[1]-maxpoint[1]%2))
         FWHM = int((3.0/8.0) * gauss_dim)
         stdv = FWHM/np.sqrt(8 * np.log(2))
@@ -194,8 +194,8 @@ class AdaptiveOpticsDevice(Device):
         gauss = np.outer(x,x.T)
         gauss = gauss*(gauss>(np.max(x)*np.min(x)))
 
-        fft_filter[(maxpoint[1]-(gauss_dim/2)):(maxpoint[1]+(gauss_dim/2)),(maxpoint[0]-(gauss_dim/2)):(maxpoint[0]+(gauss_dim/2))] = gauss
-        return fft_filter
+        self.fft_filter[(maxpoint[1]-(gauss_dim/2)):(maxpoint[1]+(gauss_dim/2)),(maxpoint[0]-(gauss_dim/2)):(maxpoint[0]+(gauss_dim/2))] = gauss
+        return self.fft_filter
 
     def phaseunwrap(self, image = None):
         #Ensure an ROI is defined so a masked image is obtained
@@ -249,8 +249,8 @@ class AdaptiveOpticsDevice(Device):
 
         #Perform unwrap
         phaseorder1unwrap = unwrap_phase(phaseorder1mask)
-        out = np.ma.filled(phaseorder1unwrap, 0)
-        return out
+        self.out = np.ma.filled(phaseorder1unwrap, 0)
+        return self.out
 
 
     def getzernikemodes(self, image_unwrap, noZernikeModes, resize_dim = 128):
@@ -329,9 +329,9 @@ class AdaptiveOpticsDevice(Device):
             offsets[:,ii] = intercepts[:]
             P_tests[:,ii] = p_values[:]
         print("Computing Control Matrix")
-        controlMatrix = np.linalg.pinv(C_mat)
+        self.controlMatrix = np.linalg.pinv(C_mat)
         print("Control Matrix computed")
-        return controlMatrix
+        return self.controlMatrix
 
     def calibrate(self, acquire, numPokeSteps = 10):
         nzernike = self.numActuators
@@ -350,9 +350,9 @@ class AdaptiveOpticsDevice(Device):
             self.mirror.apply_pattern(actuator_values[im,:])
             imStack[im, :, :] = acquire()
 
-        controlMatrix = self.createcontrolmatrix(imStack, nzernike)
+        self.controlMatrix = self.createcontrolmatrix(imStack, nzernike)
 
-        return controlMatrix
+        return self.controlMatrix
 
     def flatten_phase(self, mirror, controlMatrix, iterations = 1):
         #Ensure an ROI is defined so a masked image is obtained
@@ -411,6 +411,5 @@ class AdaptiveOpticsDevice(Device):
         actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes)
 
         self.mirror.apply_pattern(actuator_pos)
-
         return
 
