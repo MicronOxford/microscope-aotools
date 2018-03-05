@@ -112,11 +112,22 @@ class TestAOFunctions(unittest.TestCase):
   def test_aqcuire_zernike_modes(self):
     diameter = 128
     zcoeffs_in = np.zeros(self.nzernike)
-    zcoeffs_in[2] = 1
+    zcoeffs_in[5] = 1
     img = np.zeros((diameter,diameter))
     img[:,:] = aotools.phaseFromZernikes(zcoeffs_in, diameter)
 
-    
+    zc_out = np.shape((5,self.nzernike))
+    for ii in range(5):
+      zc_out[ii, :] = self.AO.getzernikemodes(img, self.nzernike)
+      assert (np.shape(np.where(zc_out[0,:] == np.max(zc_out[0,:]))) == (1,1))
+      assert (np.where(zc_out[0,:] == np.max(zc_out[0,:]))[0][0] == 5)
+
+    z_diff = zcoeffs_in-zc_out
+    z_mean_diff = np.mean(z_diff, axis=0)
+    z_var_diff = np.var(z_diff, axis=0)
+
+    assert (np.mean(z_mean_diff) < 0.001)
+    assert (np.mean(z_var_diff) < 0.00001)
 
   def test_calibrate(self):
     pass
