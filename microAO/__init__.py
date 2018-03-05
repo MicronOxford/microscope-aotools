@@ -54,6 +54,11 @@ class AdaptiveOpticsDevice(Device):
         #Control Matrix
         self.controlMatrix = None
 
+    def _on_shutdown(self):
+        pass
+
+    def initialize(self, *args, **kwargs):
+        pass
 
     def set_roi(self, x0, y0, radius):
         self.roi = (x0, y0, radius)
@@ -342,7 +347,7 @@ class AdaptiveOpticsDevice(Device):
         (width, height) =np.shape(np.asarray(self.acquire()))
         imStack = np.zeros(noImages, height, width)
         for im in range(noImages):
-            self.mirror.apply_pattern(actuator_values[im])
+            self.mirror.apply_pattern(actuator_values[im,:])
             imStack[im, :, :] = acquire()
 
         controlMatrix = self.createcontrolmatrix(imStack, nzernike)
