@@ -50,7 +50,7 @@ class AdaptiveOpticsDevice(Device):
         #Mask for the interferometric data
         self.mask = None
         #Mask to select phase information
-        self.fftfilter = None
+        self.fft_filter = None
         #Control Matrix
         self.controlMatrix = None
 
@@ -205,11 +205,11 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("No region of interest selected. Please select a region of interest")
 
         #Ensure a Fourier filter has been constructed
-        if self.fftfilter is not None:
+        if self.fft_filter is not None:
             pass
         else:
             test_image = self.acquire()
-            self.fftfilter = self.getfourierfilter(test_image)
+            self.fft_filter = self.getfourierfilter(test_image)
 
         if image is None:
             image = self.acquire()
@@ -227,12 +227,12 @@ class AdaptiveOpticsDevice(Device):
         fftarray = np.fft.fft2(fringes_tukey)
 
         #Apply Fourier filter
-        M = np.fft.fftshift(self.fftfilter)
+        M = np.fft.fftshift(self.fft_filter)
         fftarray_filt = fftarray * M
         fftarray_filt = np.fft.fftshift(fftarray_filt)
 
         #Roll data to the centre
-        g0, g1 = self.mgcentroid(self.fftfilter) - np.round(fftarray_filt.shape[0]//2)
+        g0, g1 = self.mgcentroid(self.fft_filter) - np.round(fftarray_filt.shape[0]//2)
         fftarray_filt = np.roll(fftarray_filt, -g0, axis=1)
         fftarray_filt = np.roll(fftarray_filt, -g1, axis=0)
 
@@ -277,11 +277,11 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("No region of interest selected. Please select a region of interest")
 
         #Ensure a Fourier filter has been constructed
-        if self.fftfilter is not None:
+        if self.fft_filter is not None:
             pass
         else:
             test_image = self.acquire()
-            self.fftfilter = self.getfourierfilter(test_image)
+            self.fft_filter = self.getfourierfilter(test_image)
 
         slopes = np.zeros(noZernikeModes)
         intercepts = np.zeros(noZernikeModes)
@@ -362,11 +362,11 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("No region of interest selected. Please select a region of interest")
 
         #Ensure a Fourier filter has been constructed
-        if self.fftfilter is not None:
+        if self.fft_filter is not None:
             pass
         else:
             test_image = self.acquire()
-            self.fftfilter = self.getfourierfilter(test_image)
+            self.fft_filter = self.getfourierfilter(test_image)
 
         numActuators, nzernike = np.shape(controlMatrix)
         try:
