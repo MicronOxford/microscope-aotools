@@ -215,7 +215,12 @@ class AdaptiveOpticsDevice(Device):
         if image is None:
             image = self.acquire()
 
-        #Ensure a Fourier filter has been constructed
+        #Ensure the filters has been constructed
+        if self.mask is not None:
+            pass
+        else:
+            self.mask = self.makemask(int(np.round(np.shape(image)[0]/2)))
+
         if self.fft_filter is not None:
             pass
         else:
@@ -252,7 +257,7 @@ class AdaptiveOpticsDevice(Device):
         phaseorder1[:,:] = np.arctan2(complex_phase.imag,complex_phase.real)
 
         #Mask out edge region to allow unwrap to only use correct region
-        phaseorder1mask = ma.masked_where(self.mask == 0,phaseorder1)
+        phaseorder1mask = phaseorder1 * self.mask
 
         #Perform unwrap
         phaseorder1unwrap = unwrap_phase(phaseorder1mask)
