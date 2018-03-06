@@ -65,11 +65,16 @@ class AdaptiveOpticsDevice(Device):
 
     def set_roi(self, x0, y0, radius):
         self.roi = (x0, y0, radius)
-        self.mask = self.makemask(radius)
         try:
-            assert self.mask is not None
+            assert self.roi is not None
         except:
-            raise Exception("Mask construction failed")
+            raise Exception("ROI assignment failed")
+
+        #self.mask = self.makemask(radius)
+        #try:
+        #    assert self.mask is not None
+        #except:
+        #    raise Exception("Mask construction failed")
         return
 
     def makemask(self, radius):
