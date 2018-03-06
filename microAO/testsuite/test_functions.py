@@ -107,9 +107,9 @@ class TestAOFunctions(unittest.TestCase):
     np.testing.assert_almost_equal(test_pos[1], true_pos[1], decimal=0)
 
   def test_mgcentroid(self):
-    g0, g1 = self.AO.mgcentroid(self.true_fft_filter) - self.radius
-    np.testing.assert_almost_equal(abs(g0), self.true_y_freq, decimal=0)
-    np.testing.assert_almost_equal(abs(g1), self.true_x_freq, decimal=0)
+    g0, g1 = np.asarray(self.AO.mgcentroid(self.true_fft_filter)) - self.radius
+    np.testing.assert_almost_equal(abs(g0), self.true_x_freq, decimal=0)
+    np.testing.assert_almost_equal(abs(g1), self.true_y_freq, decimal=0)
 
   def test_phase_unwrap(self):
     zcoeffs_in = np.zeros(self.planned_n_actuators)
@@ -130,18 +130,18 @@ class TestAOFunctions(unittest.TestCase):
     img = np.zeros((diameter,diameter))
     img[:,:] = aotools.phaseFromZernikes(zcoeffs_in, diameter)
 
-    zc_out = np.shape((5,self.nzernike))
+    zc_out = np.zeros((5,self.nzernike))
     for ii in range(5):
       zc_out[ii, :] = self.AO.getzernikemodes(img, self.nzernike)
-      assert np.shape(np.where(zc_out[0,:] == np.max(zc_out[0,:]))) == (1,1)
-      assert np.where(zc_out[0,:] == np.max(zc_out[0,:]))[0][0] == 5
+      max_z_mode = np.where(zc_out[0,:] == np.max(zc_out[0,:]))[0][0]
+      np.testing.assert_equal(max_z_mode, 5)
 
     z_diff = zcoeffs_in-zc_out
     z_mean_diff = np.mean(z_diff, axis=0)
     z_var_diff = np.var(z_diff, axis=0)
 
-    assert np.mean(z_mean_diff) < 0.001
-    assert np.mean(z_var_diff) < 0.00001
+    np.testing.assert_almost_equal(np.mean(z_mean_diff), 0, decimal=3)
+    np.testing.assert_almost_equal(np.mean(z_var_diff), 0, decimal=5)
 
   def test_createcontrolmatrix(self):
 
