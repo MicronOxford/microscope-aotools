@@ -120,8 +120,9 @@ class TestAOFunctions(unittest.TestCase):
     aberration = unwrap_phase(np.arctan2(aberration_phase.imag,aberration_phase.real))
 
     test_aberration = self.AO.phaseunwrap(image=test_phase)
-    assert ((np.sum(abs(test_aberration)) - np.sum(abs(aberration)))/
-            (np.shape(aberration)[0]* np.shape(aberration)[1])) < 0.001
+    aberration_diff = ((np.sum(abs(test_aberration)) - np.sum(abs(aberration)))/
+                      (np.shape(aberration)[0]* np.shape(aberration)[1]))
+    np.testing.assert_almost_equal(aberration_diff, 0, decimal=3)
 
   def test_aqcuire_zernike_modes(self):
     diameter = 128
