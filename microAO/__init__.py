@@ -212,15 +212,14 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
+        if image is None:
+            image = self.acquire()
+
         #Ensure a Fourier filter has been constructed
         if self.fft_filter is not None:
             pass
         else:
-            test_image = self.acquire()
-            self.fft_filter = self.getfourierfilter(test_image)
-
-        if image is None:
-            image = self.acquire()
+            self.fft_filter = self.getfourierfilter(image)
 
         #Convert image to array and float
         data = np.asarray(image)
@@ -288,8 +287,7 @@ class AdaptiveOpticsDevice(Device):
         if self.fft_filter is not None:
             pass
         else:
-            test_image = self.acquire()
-            self.fft_filter = self.getfourierfilter(test_image)
+            self.fft_filter = self.getfourierfilter(imageStack[0,:,:])
 
         slopes = np.zeros(noZernikeModes)
         intercepts = np.zeros(noZernikeModes)
