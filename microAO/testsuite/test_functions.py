@@ -28,9 +28,10 @@ from skimage.restoration import unwrap_phase
 import microscope.testsuite.devices as dummies
 
 class TestAOFunctions(unittest.TestCase):
-  def _construct_interferogram(self,interferogram_shape = (2048,2048)):
-    mid_y = int(interferogram_shape[0]/2)
-    mid_x = int(interferogram_shape[1]/2)
+  def _construct_interferogram(self):
+    mid_y = self.radius-1
+    mid_x = self.radius-1
+    interferogram_shape = ((self.radius*2),(self.radius*2))
     stripes_ft = np.zeros(interferogram_shape)
     stripes_ft[mid_y-self.true_y_freq, mid_x-self.true_x_freq] = 25
     stripes_ft[mid_y, mid_x] = 50
@@ -39,11 +40,7 @@ class TestAOFunctions(unittest.TestCase):
     stripes_shift = np.fft.fftshift(stripes_ft)
     stripes = np.fft.fft2(stripes_shift).real
 
-    radius = mid_x
-    diameter = radius * 2
-    mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
-
-    test_interferogram = stripes * mask
+    test_interferogram = stripes * self.true_mask
     return test_interferogram
 
   def _construct_true_mask(self):
@@ -76,13 +73,13 @@ class TestAOFunctions(unittest.TestCase):
     self.AO = microAO.AdaptiveOpticsDevice(camera=cam, mirror=self.dm)
 
     #Initialize necessary variables
-    self.AO.set_roi(x0=1023, y0=1023, radius=1024)
-    self.nzernike = 10
     self.radius = 1024
+    self.AO.set_roi(x0=self.radius, y0=self.radius, radius=self.radius)
+    self.nzernike = 10
     self.true_x_freq = 350
     self.true_y_freq = 0
-    self.test_inter = self._construct_interferogram()
     self.true_mask = self._construct_true_mask()
+    self.test_inter = self._construct_interferogram()
     self.true_fft_filter = self._construct_true_fft_filter()
 
   def test_applying_pattern(self):
@@ -138,16 +135,43 @@ class TestAOFunctions(unittest.TestCase):
       np.testing.assert_equal(max_z_mode, 5)
 
     z_diff = zcoeffs_in-zc_out
-    z_mean_diff = np.mean(z_diff, axis=0)
-    z_var_diff = np.var(z_diff, axis=0)
+    z_mean_diff = np.mean(z_diff)
+    z_var_diff = np.var(z_diff)
 
-    np.testing.assert_almost_equal(np.mean(z_mean_diff), 0, decimal=3)
-    np.testing.assert_almost_equal(np.mean(z_var_diff), 0, decimal=5)
+    np.testing.assert_almost_equal(z_mean_diff, 0, decimal=3)
+    np.testing.assert_almost_equal(z_var_diff, 0, decimal=5)
 
   def test_createcontrolmatrix(self):
+    zcoeffs_in = np.zeros(self.planned_n_actuators)
+    test_stack = np.zeros((100,self.test_inter.shape[0],self.test_inter.shape[1]),
+                          dtype=np.complex_)
+    true_control_matrix = np.diag(np.ones(self.planned_n_actuators)*2)
 
-    #self.AO.createcontrolmatrix(imageStack=test_stack, noZernikeModes=self.nzernike)
-    pass
+    count = 0
+    for ii in range(self.planned_n_actuators):
+      for jj in np.linspace(0.05,0.95,10):
+        zcoeffs_in[ii] = 2*jj
+        aberration_angle = aotools.phaseFromZernikes(zcoeffs_in, (self.radius*2))
+        aberration_phase = ((1 + np.cos(aberration_angle) + (1j *
+                            np.sin(aberration_angle))) * self.true_mask)
+        test_stack[count,:,:] = self.test_inter * aberration_phase
+        print "Test image %d\%d constructed" %(int(count+1),int(self.planned_n_actuators*10))
+        count += 1
+
+    test_control_matrix = self.AO.createcontrolmatrix(imageStack=test_stack,
+                                                      noZernikeModes=self.nzernike)
+    max_ind = []
+    for ii in range(self.planned_n_actuators):
+      max_ind.append(np.where(test_control_matrix[:,ii] ==
+                              np.max(test_control_matrix[:,ii]))[0][0])
+    np.testing.assert_equal(max_ind, range(self.planned_n_actuators))
+
+    CM_diff = test_control_matrix - true_control_matrix
+    CM_mean_diff = np.mean(CM_diff)
+    CM_var_diff = np.var(CM_diff)
+
+    np.testing.assert_almost_equal(CM_mean_diff, 0, decimal=3)
+    np.testing.assert_almost_equal(CM_var_diff, 0, decimal=5)
 
   def test_calibrate(self):
     pass
