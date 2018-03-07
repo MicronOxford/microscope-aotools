@@ -154,8 +154,6 @@ class AdaptiveOpticsDevice(Device):
 
         #Convert image to array and float
         data = np.asarray(test_image)
-        data = data[::-1]
-        data = data.astype(float)
 
         #Apply tukey window
         fringes = np.fft.fftshift(data)
@@ -288,7 +286,12 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        #Ensure a Fourier filter has been constructed
+        #Ensure the filters has been constructed
+        if self.mask is not None:
+            pass
+        else:
+            self.mask = self.makemask(int(np.round(np.shape(imageStack)[1]/2)))
+
         if self.fft_filter is not None:
             pass
         else:
