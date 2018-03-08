@@ -259,7 +259,7 @@ class AdaptiveOpticsDevice(Device):
 
         #Perform unwrap
         phaseorder1unwrap = unwrap_phase(phaseorder1mask)
-        self.out = np.ma.filled(phaseorder1unwrap, 0)
+        self.out = phaseorder1unwrap * self.mask
         return self.out
 
 
@@ -279,7 +279,7 @@ class AdaptiveOpticsDevice(Device):
         coef = np.asarray(zcoeffs_dbl)
         return coef
 
-    def createcontrolmatrix(self, imageStack, noZernikeModes):
+    def createcontrolmatrix(self, imageStack, noZernikeModes, pokeSteps):
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
@@ -309,9 +309,7 @@ class AdaptiveOpticsDevice(Device):
         except:
             print "Error: Expected numpy.ndarray input data type, got %s" %type(imageStack)
         [noImages, x, y] = np.shape(imageStack)
-        image_unwrap = np.shape((x,y))
         numPokeSteps = noImages/self.numActuators
-        pokeSteps = np.linspace(-0.6,0.6,numPokeSteps)
         zernikeModeAmp = np.zeros((numPokeSteps,noZernikeModes))
         C_mat = np.zeros((noZernikeModes,self.numActuators))
         all_zernikeModeAmp = np.ones((noImages,noZernikeModes))
@@ -350,7 +348,9 @@ class AdaptiveOpticsDevice(Device):
     def calibrate(self, acquire, numPokeSteps = 10):
         nzernike = self.numActuators
 
-        pokeSteps = np.linspace(0.5,0.95,numPokeSteps)
+        poke_min = 0.05
+        poke_max = 0.95
+        pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*nzernike
 
         actuator_values = np.zeros((noImages,nzernike))
@@ -364,7 +364,7 @@ class AdaptiveOpticsDevice(Device):
             self.mirror.apply_pattern(actuator_values[im,:])
             imStack[im, :, :] = acquire()
 
-        self.controlMatrix = self.createcontrolmatrix(imStack, nzernike)
+        self.controlMatrix = self.createcontrolmatrix(imStack, nzernike, pokeSteps)
 
         return self.controlMatrix
 
