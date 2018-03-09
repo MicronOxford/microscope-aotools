@@ -118,10 +118,13 @@ class TestAOFunctions(unittest.TestCase):
     aberration = unwrap_phase(np.arctan2(aberration_phase.imag,aberration_phase.real))
 
     test_aberration = self.AO.phaseunwrap(image=test_phase)
+    #Test that the test aberrations isn't all 0s
     np.testing.assert_equal(np.not_equal(np.sum(test_aberration),0), True)
     ab_ratio_mean = np.mean(test_aberration[aberration != 0]/aberration[aberration != 0])
     ab_ratio_var = np.var(test_aberration[aberration != 0]/aberration[aberration != 0])
 
+    #Test that there is a sensible ratio between the test and true aberration
+    #and that the variance of ratio is small
     np.testing.assert_equal((abs(ab_ratio_mean) < 10), True)
     np.testing.assert_almost_equal(ab_ratio_var, 0, decimal=1)
 
