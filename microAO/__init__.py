@@ -309,7 +309,7 @@ class AdaptiveOpticsDevice(Device):
         except:
             print "Error: Expected numpy.ndarray input data type, got %s" %type(imageStack)
         [noImages, x, y] = np.shape(imageStack)
-        numPokeSteps = noImages/self.numActuators
+        numPokeSteps = len(pokeSteps)
         zernikeModeAmp = np.zeros((numPokeSteps,noZernikeModes))
         C_mat = np.zeros((noZernikeModes,self.numActuators))
         all_zernikeModeAmp = np.ones((noImages,noZernikeModes))
