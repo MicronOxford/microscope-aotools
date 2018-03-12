@@ -151,7 +151,7 @@ class TestAOFunctions(unittest.TestCase):
   def test_createcontrolmatrix(self):
     test_stack = np.zeros((self.nzernike*10,self.test_inter.shape[0],self.test_inter.shape[1]),
                           dtype=np.complex_)
-    true_control_matrix = np.diag(np.ones(self.nzernike)*2)
+    true_control_matrix = np.diag(np.ones(self.nzernike))
     np.save('true_control_matrix', true_control_matrix)
 
     count = 0
@@ -159,17 +159,15 @@ class TestAOFunctions(unittest.TestCase):
     for ii in range(self.nzernike):
       for jj in pokeSteps:
         zcoeffs_in = np.zeros(self.nzernike)
-        zcoeffs_in[ii] = 2*jj
+        zcoeffs_in[ii] = 1*jj
         aberration_angle = aotools.phaseFromZernikes(zcoeffs_in, (self.radius*2))
         aberration_phase = ((1 + np.cos(aberration_angle) + (1j *
                             np.sin(aberration_angle))) * self.true_mask)
         test_stack[count,:,:] = self.test_inter * aberration_phase
         print "Test image %d\%d constructed" %(int(count+1),int(self.nzernike*10))
         count += 1
-    np.save('test_stack', test_stack)
 
     test_control_matrix = self.AO.createcontrolmatrix(test_stack, self.nzernike, pokeSteps)
-    np.save('test_control_matrix', test_control_matrix)
     max_ind = []
     for ii in range(self.nzernike):
       max_ind.append(np.where(test_control_matrix[:,ii] ==
@@ -177,10 +175,8 @@ class TestAOFunctions(unittest.TestCase):
     np.testing.assert_equal(max_ind, range(self.nzernike))
 
     CM_diff = test_control_matrix - true_control_matrix
-    CM_mean_diff = np.mean(CM_diff)
-    CM_var_diff = np.var(CM_diff)
+    CM_var_diff = np.var(np.diag(CM_diff))
 
-    np.testing.assert_almost_equal(CM_mean_diff, 0, decimal=3)
     np.testing.assert_almost_equal(CM_var_diff, 0, decimal=5)
 
   def test_calibrate(self):
