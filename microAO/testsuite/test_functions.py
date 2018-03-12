@@ -152,7 +152,6 @@ class TestAOFunctions(unittest.TestCase):
     test_stack = np.zeros((self.nzernike*10,self.test_inter.shape[0],self.test_inter.shape[1]),
                           dtype=np.complex_)
     true_control_matrix = np.diag(np.ones(self.nzernike))
-    np.save('true_control_matrix', true_control_matrix)
 
     count = 0
     pokeSteps = np.linspace(0.05,0.95,10)
@@ -177,10 +176,12 @@ class TestAOFunctions(unittest.TestCase):
     CM_diff = test_control_matrix - true_control_matrix
     CM_var_diff = np.var(np.diag(CM_diff))
 
-    np.testing.assert_almost_equal(CM_var_diff, 0, decimal=5)
+    np.testing.assert_almost_equal(CM_var_diff, 0, decimal=3)
 
   def test_calibrate(self):
-    pass
+    test_control_matrix = self.AO.calibrate(self.AO.acquire(),numPokeSteps=10)
+    test_control_matrix_shape = np.shape(test_control_matrix)
+    np.testing.assert_equal(test_control_matrix_shape,(10,self.nzernike))
 
   def test_flatten(self):
     pass
