@@ -368,7 +368,7 @@ class AdaptiveOpticsDevice(Device):
 
         return self.controlMatrix
 
-    def flatten_phase(self, mirror, controlMatrix, iterations = 1):
+    def flatten_phase(self, controlMatrix, iterations = 1):
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
