@@ -28,6 +28,7 @@ import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
 import logging
+import Pyro4
 
 from microscope.devices import Device
 from microscope.clients import Client, DataClient
@@ -38,13 +39,14 @@ class AdaptiveOpticsDevice(Device):
     This class requires a mirror and a camera. Everything else is generated
     on or after __init__"""
 
-    def __init__(self, camera, mirror):
+    def __init__(self, camera_uri, mirror_uri, **kwargs):
         # Init will fail if devices it depends on aren't already running, but
         # deviceserver should retry automatically.
+        super(AdaptiveOpticsDevice, self).__init__(**kwargs)
         # Camera or wavefront sensor. Must support soft_trigger for now.
-        self.camera = camera
+        self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %('camera', camera_uri[0], camera_uri[1]))
         # Deformable mirror device.
-        self.mirror = mirror
+        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %('mirror', mirror_uri[0], mirror_uri[1]))
         self.numActuators = self.mirror.n_actuators #FIXME Client
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
