@@ -44,10 +44,10 @@ class AdaptiveOpticsDevice(Device):
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
         # Camera or wavefront sensor. Must support soft_trigger for now.
-        self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %('camera', camera_uri[0], camera_uri[1]))
+        self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(str(camera_uri[0]), camera_uri[1], camera_uri[2]))
         # Deformable mirror device.
-        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %('mirror', mirror_uri[0], mirror_uri[1]))
-        self.numActuators = self.mirror.n_actuators #FIXME Client
+        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(str(mirror_uri[0]), mirror_uri[1], mirror_uri[2]))
+        self.numActuators = self.mirror.n_actuators() #FIXME Client
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
