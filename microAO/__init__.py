@@ -46,6 +46,7 @@ class AdaptiveOpticsDevice(Device):
         # Camera or wavefront sensor. Must support soft_trigger for now.
         self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__,
                                                 camera_uri[1], camera_uri[2]))
+        self.camera.enable()
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
@@ -87,7 +88,9 @@ class AdaptiveOpticsDevice(Device):
         return self.mask
 
     def acquire(self):
-        data_raw = self.camera.trigger_and_wait()
+        data_raw = []
+        data_raw.append(self.camera.trigger_and_wait())
+        np.asarray(data_raw)
         if self.roi is not None:
             data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
             data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
@@ -349,7 +352,7 @@ class AdaptiveOpticsDevice(Device):
         print("Control Matrix computed")
         return self.controlMatrix
 
-    def calibrate(self, acquire, numPokeSteps = 10):
+    def calibrate(self, numPokeSteps = 10):
         nzernike = self.numActuators
 
         poke_min = 0.05
@@ -362,11 +365,11 @@ class AdaptiveOpticsDevice(Device):
             for jj in range(numPokeSteps):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
 
-        (width, height) =np.shape(np.asarray(self.acquire()))
+        (width, height) = np.shape(np.asarray(self.acquire()))
         imStack = np.zeros(noImages, height, width)
         for im in range(noImages):
             self.mirror.apply_pattern(actuator_values[im,:])
-            imStack[im, :, :] = acquire()
+            imStack[im, :, :] = self.acquire()
 
         self.controlMatrix = self.createcontrolmatrix(imStack, nzernike, pokeSteps)
 
