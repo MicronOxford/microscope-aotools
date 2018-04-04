@@ -88,9 +88,7 @@ class AdaptiveOpticsDevice(Device):
         return self.mask
 
     def acquire(self):
-        data_raw = []
-        data_raw.append(self.camera.trigger_and_wait())
-        np.asarray(data_raw)
+        data_raw = self.camera.get_current_image()
         if self.roi is not None:
             data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
             data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
