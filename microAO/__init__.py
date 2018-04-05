@@ -450,4 +450,8 @@ class AdaptiveOpticsDevice(Device):
         self.mirror.apply_pattern(actuator_pos)
         return
 
-
+    def wavefront_rms_error(self):
+        phase_map = self.acquire_unwrapped_phase()
+        true_flat = np.zeros(np.shape(phase_map))
+        rms_error = np.sqrt(np.mean((true_flat - phase_map)**2))
+        return rms_error
