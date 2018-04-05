@@ -368,6 +368,12 @@ class AdaptiveOpticsDevice(Device):
         interferogram_unwrap = self.phaseunwrap(interferogram)
         return interferogram_unwrap
 
+    def wavefront_rms_error(self):
+        phase_map = self.acquire_unwrapped_phase()
+        true_flat = np.zeros(np.shape(phase_map))
+        rms_error = np.sqrt(np.mean((true_flat - phase_map)**2))
+        return rms_error
+
     def calibrate(self, numPokeSteps = 10):
         nzernike = self.numActuators
 
@@ -419,6 +425,8 @@ class AdaptiveOpticsDevice(Device):
         z_amps = np.zeros(nzernike)
         previous_z_amps = np.zeros(nzernike)
 
+        previous_rms_error = np.inf
+
         for ii in range(iterations):
             interferogram = self.acquire()
 
@@ -428,10 +436,13 @@ class AdaptiveOpticsDevice(Device):
 
             self.mirror.apply_pattern(flat_actuators)
 
-            ##We need some test here for ringing in our solution
-
-            previous_z_amps[:] = z_amps[:]
-            previous_flat_actuators[:] = flat_actuators[:]
+            true_flat = np.zeros(np.shape(interferogram_unwrap))
+            rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
+            if rms_error < previous_rms_error:
+                previous_z_amps[:] = z_amps[:]
+                previous_flat_actuators[:] = flat_actuators[:]
+            else:
+                print("Ringing occured after %f iterations") %(ii + 1)
 
         return flat_actuators
 
@@ -449,9 +460,3 @@ class AdaptiveOpticsDevice(Device):
 
         self.mirror.apply_pattern(actuator_pos)
         return
-
-    def wavefront_rms_error(self):
-        phase_map = self.acquire_unwrapped_phase()
-        true_flat = np.zeros(np.shape(phase_map))
-        rms_error = np.sqrt(np.mean((true_flat - phase_map)**2))
-        return rms_error
