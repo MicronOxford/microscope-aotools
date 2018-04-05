@@ -368,6 +368,11 @@ class AdaptiveOpticsDevice(Device):
         interferogram_unwrap = self.phaseunwrap(interferogram)
         return interferogram_unwrap
 
+    def measure_zernike(self,noZernikeModes):
+        unwrapped_phase = self.acquire_unwrapped_phase()
+        zernike_amps = self.getzernikemodes(unwrapped_phase,noZernikeModes)
+        return zernike_amps
+
     def wavefront_rms_error(self):
         phase_map = self.acquire_unwrapped_phase()
         true_flat = np.zeros(np.shape(phase_map))
