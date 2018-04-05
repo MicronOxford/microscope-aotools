@@ -465,3 +465,16 @@ class AdaptiveOpticsDevice(Device):
 
         self.mirror.apply_pattern(actuator_pos)
         return
+
+    def assess_character(self, modes_tba = None):
+        if modes_tba is None:
+            modes_tba = self.numActuators
+        assay = np.zeros((modes_tba,modes_tba))
+        applied_z_modes = np.zeros(modes_tba)
+        for ii in modes_tba:
+            applied_z_modes[ii] = 1
+            self.set_phase(applied_z_modes)
+            acquired_z_modes = self.measure_zernike(modes_tba)
+            assay[:,ii] = acquired_z_modes
+            applied_z_modes[ii] = 0
+        return assay
