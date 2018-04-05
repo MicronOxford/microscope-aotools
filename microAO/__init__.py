@@ -350,6 +350,24 @@ class AdaptiveOpticsDevice(Device):
         print("Control Matrix computed")
         return self.controlMatrix
 
+    def acquire_unwrapped_phase(self):
+        #Ensure an ROI is defined so a masked image is obtained
+        try:
+            assert self.roi is not None
+        except:
+            raise Exception("No region of interest selected. Please select a region of interest")
+
+        #Ensure a Fourier filter has been constructed
+        if self.fft_filter is not None:
+            pass
+        else:
+            test_image = self.acquire()
+            self.fft_filter = self.getfourierfilter(test_image)
+
+        interferogram = self.acquire()
+        interferogram_unwrap = self.phaseunwrap(interferogram)
+        return interferogram_unwrap
+
     def calibrate(self, numPokeSteps = 10):
         nzernike = self.numActuators
 
@@ -431,4 +449,5 @@ class AdaptiveOpticsDevice(Device):
 
         self.mirror.apply_pattern(actuator_pos)
         return
+
 
