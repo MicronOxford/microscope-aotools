@@ -99,7 +99,11 @@ class AdaptiveOpticsDevice(Device):
                 data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
                 data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
                            self.roi[1]-self.roi[2]:self.roi[1]+self.roi[2]]
-                data = data_cropped * self.mask
+                if self.mask is not None:
+                    data = data_cropped * self.mask
+                else:
+                    self.mask = self.makemask(self.roi[2])
+                    data = data_cropped * self.mask
             else:
                 data = data_raw
             self.acquiring = False
