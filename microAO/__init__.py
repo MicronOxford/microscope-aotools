@@ -48,6 +48,7 @@ class AdaptiveOpticsDevice(Device):
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
         # Camera or wavefront sensor. Must support soft_trigger for now.
+<<<<<<< HEAD
         self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__, 
                                             camera_uri[1], camera_uri[2]))
         self.camera.enable()
@@ -55,6 +56,15 @@ class AdaptiveOpticsDevice(Device):
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__, 
                                             mirror_uri[1], mirror_uri[2]))
         self.numActuators = self.mirror.get_n_actuators() #FIXME Client
+=======
+        self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__,
+                                                camera_uri[1], camera_uri[2]))
+        self.camera.enable()
+        # Deformable mirror device.
+        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
+                                                mirror_uri[1], mirror_uri[2]))
+        self.numActuators = self.mirror.get_n_actuators()
+>>>>>>> 6b2f9e969ebaadef5686cbe6e56a7933f6279c89
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
@@ -93,10 +103,19 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def acquire(self):
+<<<<<<< HEAD
         self.camera.soft_trigger()
         data_raw = self.camera.get_current_image()
         if data_raw is "Xi_error: ERROR 10: Timeout":
             return
+=======
+        data_raw = self.camera.get_current_image()
+        if self.roi is not None:
+            data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
+            data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
+                       self.roi[1]-self.roi[2]:self.roi[1]+self.roi[2]]
+            data = data_cropped * self.mask
+>>>>>>> 6b2f9e969ebaadef5686cbe6e56a7933f6279c89
         else:
             if self.roi is not None:
                 self._logger.info('roi is not None')
@@ -365,8 +384,36 @@ class AdaptiveOpticsDevice(Device):
         print("Control Matrix computed")
         return self.controlMatrix
 
-    @Pyro4.expose
-    def calibrate(self, numPokeSteps = 5):
+    def acquire_unwrapped_phase(self):
+        #Ensure an ROI is defined so a masked image is obtained
+        try:
+            assert self.roi is not None
+        except:
+            raise Exception("No region of interest selected. Please select a region of interest")
+
+        #Ensure a Fourier filter has been constructed
+        if self.fft_filter is not None:
+            pass
+        else:
+            test_image = self.acquire()
+            self.fft_filter = self.getfourierfilter(test_image)
+
+        interferogram = self.acquire()
+        interferogram_unwrap = self.phaseunwrap(interferogram)
+        return interferogram_unwrap
+
+    def measure_zernike(self,noZernikeModes):
+        unwrapped_phase = self.acquire_unwrapped_phase()
+        zernike_amps = self.getzernikemodes(unwrapped_phase,noZernikeModes)
+        return zernike_amps
+
+    def wavefront_rms_error(self):
+        phase_map = self.acquire_unwrapped_phase()
+        true_flat = np.zeros(np.shape(phase_map))
+        rms_error = np.sqrt(np.mean((true_flat - phase_map)**2))
+        return rms_error
+
+    def calibrate(self, numPokeSteps = 10):
         nzernike = self.numActuators
 
         poke_min = -1
@@ -380,6 +427,7 @@ class AdaptiveOpticsDevice(Device):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
 
         (width, height) = np.shape(np.asarray(self.acquire()))
+
         imStack = np.zeros((noImages, height, width))
         for im in range(noImages):
             self._logger.info("Frame %i captured" %(int(im)+1))
@@ -430,6 +478,8 @@ class AdaptiveOpticsDevice(Device):
         z_amps = np.zeros(nzernike)
         previous_z_amps = np.zeros(nzernike)
 
+        previous_rms_error = np.inf
+
         for ii in range(iterations):
             interferogram = self.acquire()
 
@@ -439,10 +489,13 @@ class AdaptiveOpticsDevice(Device):
 
             self.mirror.apply_pattern(flat_actuators)
 
-            ##We need some test here for ringing in our solution
-
-            previous_z_amps[:] = z_amps[:]
-            previous_flat_actuators[:] = flat_actuators[:]
+            true_flat = np.zeros(np.shape(interferogram_unwrap))
+            rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
+            if rms_error < previous_rms_error:
+                previous_z_amps[:] = z_amps[:]
+                previous_flat_actuators[:] = flat_actuators[:]
+            else:
+                print("Ringing occured after %f iterations") %(ii + 1)
 
         return flat_actuators
 
@@ -462,3 +515,15 @@ class AdaptiveOpticsDevice(Device):
         self.mirror.apply_pattern(actuator_pos)
         return
 
+    def assess_character(self, modes_tba = None):
+        if modes_tba is None:
+            modes_tba = self.numActuators
+        assay = np.zeros((modes_tba,modes_tba))
+        applied_z_modes = np.zeros(modes_tba)
+        for ii in modes_tba:
+            applied_z_modes[ii] = 1
+            self.set_phase(applied_z_modes)
+            acquired_z_modes = self.measure_zernike(modes_tba)
+            assay[:,ii] = acquired_z_modes
+            applied_z_modes[ii] = 0
+        return assay
