@@ -27,15 +27,9 @@ import aotools
 import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
-import logging
 import Pyro4
 import time
-
 from microscope.devices import Device
-from microscope.clients import Client, DataClient
-
-import traceback
-import ximea.xiapi
 
 class AdaptiveOpticsDevice(Device):
     """Class for the adaptive optics device
