@@ -29,9 +29,13 @@ from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
 import logging
 import Pyro4
+import time
 
 from microscope.devices import Device
 from microscope.clients import Client, DataClient
+
+import traceback
+import ximea.xiapi
 
 class AdaptiveOpticsDevice(Device):
     """Class for the adaptive optics device
@@ -44,10 +48,13 @@ class AdaptiveOpticsDevice(Device):
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
         # Camera or wavefront sensor. Must support soft_trigger for now.
-        self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %('camera', camera_uri[0], camera_uri[1]))
+        self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__, 
+                                            camera_uri[1], camera_uri[2]))
+        self.camera.enable()
         # Deformable mirror device.
-        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %('mirror', mirror_uri[0], mirror_uri[1]))
-        self.numActuators = self.mirror.n_actuators #FIXME Client
+        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__, 
+                                            mirror_uri[1], mirror_uri[2]))
+        self.numActuators = self.mirror.get_n_actuators() #FIXME Client
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
@@ -57,14 +64,13 @@ class AdaptiveOpticsDevice(Device):
         #Control Matrix
         self.controlMatrix = None
 
-        self._logger = logging.getLogger('dev-null')
-
     def _on_shutdown(self):
         pass
 
     def initialize(self, *args, **kwargs):
         pass
 
+    @Pyro4.expose
     def set_roi(self, x0, y0, radius):
         self.roi = (x0, y0, radius)
         try:
@@ -79,21 +85,29 @@ class AdaptiveOpticsDevice(Device):
         #    raise Exception("Mask construction failed")
         return
 
+    @Pyro4.expose
     def makemask(self, radius):
         diameter = radius * 2
         self.mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
         return self.mask
 
+    @Pyro4.expose
     def acquire(self):
-        data_raw = self.camera.trigger_and_wait()
-        if self.roi is not None:
-            data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
-            data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
-                       self.roi[1]-self.roi[2]:self.roi[1]+self.roi[2]]
-            data = data_cropped * self.mask
+        self.camera.soft_trigger()
+        data_raw = self.camera.get_current_image()
+        if data_raw is "Xi_error: ERROR 10: Timeout":
+            return
         else:
-            data = data_raw
-        return data
+            if self.roi is not None:
+                self._logger.info('roi is not None')
+                data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
+                data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
+                           self.roi[1]-self.roi[2]:self.roi[1]+self.roi[2]]
+                data = data_cropped * self.mask
+            else:
+                data = data_raw
+            self.acquiring = False
+            return data
 
     def bin_ndarray(self, ndarray, new_shape, operation='sum'):
         """
@@ -147,6 +161,7 @@ class AdaptiveOpticsDevice(Device):
         mymass = np.sum(myim.ravel())
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
+    @Pyro4.expose
     def getfourierfilter(self, test_image, region=30):
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -205,6 +220,7 @@ class AdaptiveOpticsDevice(Device):
         self.fft_filter[(maxpoint[1]-(gauss_dim/2)):(maxpoint[1]+(gauss_dim/2)),(maxpoint[0]-(gauss_dim/2)):(maxpoint[0]+(gauss_dim/2))] = gauss
         return self.fft_filter
 
+    @Pyro4.expose
     def phaseunwrap(self, image = None):
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -265,6 +281,7 @@ class AdaptiveOpticsDevice(Device):
         return self.out
 
 
+    @Pyro4.expose
     def getzernikemodes(self, image_unwrap, noZernikeModes, resize_dim = 128):
         #Resize image
         original_dim = int(np.shape(image_unwrap)[0])
@@ -281,6 +298,7 @@ class AdaptiveOpticsDevice(Device):
         coef = np.asarray(zcoeffs_dbl)
         return coef
 
+    @Pyro4.expose
     def createcontrolmatrix(self, imageStack, noZernikeModes, pokeSteps):
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -347,11 +365,12 @@ class AdaptiveOpticsDevice(Device):
         print("Control Matrix computed")
         return self.controlMatrix
 
-    def calibrate(self, acquire, numPokeSteps = 10):
+    @Pyro4.expose
+    def calibrate(self, numPokeSteps = 5):
         nzernike = self.numActuators
 
-        poke_min = 0.05
-        poke_max = 0.95
+        poke_min = -1
+        poke_max = 1
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*nzernike
 
@@ -360,16 +379,29 @@ class AdaptiveOpticsDevice(Device):
             for jj in range(numPokeSteps):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
 
-        (width, height) =np.shape(np.asarray(self.acquire()))
-        imStack = np.zeros(noImages, height, width)
+        (width, height) = np.shape(np.asarray(self.acquire()))
+        imStack = np.zeros((noImages, height, width))
         for im in range(noImages):
-            self.mirror.apply_pattern(actuator_values[im,:])
-            imStack[im, :, :] = acquire()
+            self._logger.info("Frame %i captured" %(int(im)+1))
+            try:
+                self.mirror.send(actuator_values[im,:])
+            except:
+                self._logger.info("Actuator values being sent:")
+                self._logger.info(actuator_values[im,:])
+                self._logger.info("Shape of actuator vector:")
+                self._logger.info(np.shape(actuator_values[im,:]))
+            self.acquiring = True
+            while self.acquiring == True:
+                try:
+                    imStack[im, :, :] = self.acquire()
+                except:
+                    time.sleep(1)
 
         self.controlMatrix = self.createcontrolmatrix(imStack, nzernike, pokeSteps)
 
         return self.controlMatrix
 
+    @Pyro4.expose
     def flatten_phase(self, controlMatrix, iterations = 1):
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -414,6 +446,7 @@ class AdaptiveOpticsDevice(Device):
 
         return flat_actuators
 
+    @Pyro4.expose
     def set_phase(self, applied_z_modes):
         if int(np.shape(applied_z_modes)[0]) < int(np.shape(self.controlMatrix)[1]):
             pad_length = int(np.shape(applied_z_modes)[0]) - int(np.shape(self.controlMatrix)[1])
