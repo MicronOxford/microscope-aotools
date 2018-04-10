@@ -48,15 +48,6 @@ class AdaptiveOpticsDevice(Device):
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
         # Camera or wavefront sensor. Must support soft_trigger for now.
-<<<<<<< HEAD
-        self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__, 
-                                            camera_uri[1], camera_uri[2]))
-        self.camera.enable()
-        # Deformable mirror device.
-        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__, 
-                                            mirror_uri[1], mirror_uri[2]))
-        self.numActuators = self.mirror.get_n_actuators() #FIXME Client
-=======
         self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__,
                                                 camera_uri[1], camera_uri[2]))
         self.camera.enable()
@@ -64,7 +55,6 @@ class AdaptiveOpticsDevice(Device):
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
         self.numActuators = self.mirror.get_n_actuators()
->>>>>>> 6b2f9e969ebaadef5686cbe6e56a7933f6279c89
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
@@ -103,19 +93,10 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def acquire(self):
-<<<<<<< HEAD
         self.camera.soft_trigger()
         data_raw = self.camera.get_current_image()
         if data_raw is "Xi_error: ERROR 10: Timeout":
             return
-=======
-        data_raw = self.camera.get_current_image()
-        if self.roi is not None:
-            data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
-            data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
-                       self.roi[1]-self.roi[2]:self.roi[1]+self.roi[2]]
-            data = data_cropped * self.mask
->>>>>>> 6b2f9e969ebaadef5686cbe6e56a7933f6279c89
         else:
             if self.roi is not None:
                 self._logger.info('roi is not None')
