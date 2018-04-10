@@ -45,6 +45,7 @@ class AdaptiveOpticsDevice(Device):
         self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__,
                                                 camera_uri[1], camera_uri[2]))
         self.camera.enable()
+        self.exposure_time = self.camera.get_exposure_time()
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
@@ -88,6 +89,7 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def acquire(self):
         self.camera.soft_trigger()
+        time.sleep(self.exposure_time)
         data_raw = self.camera.get_current_image()
         if data_raw is "Xi_error: ERROR 10: Timeout":
             return
