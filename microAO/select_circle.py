@@ -69,7 +69,7 @@ class Canvas(tk.Canvas):
             self.centre[0] = (event.x - self.offset[0]) * self.ratio
             self.centre[1] = (event.y - self.offset[1]) * self.ratio
             self.diameter = (event.x+1 - event.x+1 + 1) * self.ratio
-            Config.setValue('alpao_circleParams', (self.centre[0], self.centre[1], self.diameter), isGlobal=True)
+            np.save("alpao_circleParams", np.asarray([self.centre[0], self.centre[1], self.diameter]))
 
     def circle_resize(self, event):
         if self.circle is None:
@@ -86,7 +86,7 @@ class Canvas(tk.Canvas):
         self.scale(self.circle, unscaledCentre[0], unscaledCentre[1], scale, scale)
         self.p_click= (event.x, event.y)
         self.diameter = (self.bbox(self.circle)[2] - self.bbox(self.circle)[0]) * self.ratio
-        Config.setValue('alpao_circleParams', (self.centre[0], self.centre[1], self.diameter), isGlobal=True)
+        np.save("alpao_circleParams", np.asarray([self.centre[0], self.centre[1], self.diameter]))
 
     def circle_drag(self, event):
         if self.circle is None:
@@ -102,5 +102,5 @@ class Canvas(tk.Canvas):
         unscaledCentre = ((bbox[2] + bbox[0]) / 2, (bbox[3] + bbox[1]) / 2)
         self.centre[0] = (unscaledCentre[0] - self.offset[0]) * self.ratio
         self.centre[1] = (unscaledCentre[1] - self.offset[1]) * self.ratio
-        Config.setValue('alpao_circleParams', (self.centre[0], self.centre[1], self.diameter), isGlobal=True)
+        np.save("alpao_circleParams", np.asarray([self.centre[0], self.centre[1], self.diameter]))
         self.update()
