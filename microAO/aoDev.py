@@ -552,6 +552,7 @@ class AdaptiveOpticsDevice(Device):
         self.mirror.apply_pattern(actuator_pos)
         return
 
+    @Pyro4.expose
     def assess_character(self, modes_tba = None):
         if modes_tba is None:
             modes_tba = self.numActuators
