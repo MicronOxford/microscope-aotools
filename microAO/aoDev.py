@@ -81,6 +81,10 @@ class AdaptiveOpticsDevice(Device):
         return
 
     @Pyro4.expose
+    def get_roi(self):
+        return self.roi
+
+    @Pyro4.expose
     def makemask(self, radius):
         diameter = radius * 2
         self.mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
