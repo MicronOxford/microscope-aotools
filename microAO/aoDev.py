@@ -401,39 +401,88 @@ class AdaptiveOpticsDevice(Device):
         rms_error = np.sqrt(np.mean((true_flat - phase_map)**2))
         return rms_error
 
+    @Pyro4.expose
     def calibrate(self, numPokeSteps = 10):
+        #Ensure an ROI is defined so a masked image is obtained
+        try:
+            assert self.roi is not None
+        except:
+            raise Exception("No region of interest selected. Please select a region of interest")
+
+        test_image = np.shape(np.asarray(self.acquire()))
+        (width, height) = test_image
+
+        #Ensure the filters has been constructed
+        if self.mask is not None:
+            pass
+        else:
+            self.mask = self.makemask(int(np.round(np.shape(test_image)[0]/2)))
+
+        if self.fft_filter is not None:
+            pass
+        else:
+            self.fft_filter = self.getfourierfilter(test_image[:,:])
+
         nzernike = self.numActuators
 
-        poke_min = -1
-        poke_max = 1
+        poke_min = -0.95
+        poke_max = 0.95
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*nzernike
+
+        slopes = np.zeros(nzernike)
+        intercepts = np.zeros(nzernike)
+        r_values = np.zeros(nzernike)
+        p_values = np.zeros(nzernike)
+        std_errs = np.zeros(nzernike)
 
         actuator_values = np.zeros((noImages,nzernike))
         for ii in range(nzernike):
             for jj in range(numPokeSteps):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
 
-        (width, height) = np.shape(np.asarray(self.acquire()))
+        zernikeModeAmp = np.zeros((numPokeSteps,nzernike))
+        C_mat = np.zeros((nzernike,self.numActuators))
+        all_zernikeModeAmp = np.ones((noImages,nzernike))
+        offsets = np.zeros((nzernike,self.numActuators))
+        P_tests = np.zeros((nzernike,self.numActuators))
 
-        imStack = np.zeros((noImages, height, width))
-        for im in range(noImages):
-            self._logger.info("Frame %i captured" %(int(im)+1))
-            try:
-                self.mirror.send(actuator_values[im,:])
-            except:
-                self._logger.info("Actuator values being sent:")
-                self._logger.info(actuator_values[im,:])
-                self._logger.info("Shape of actuator vector:")
-                self._logger.info(np.shape(actuator_values[im,:]))
-            self.acquiring = True
-            while self.acquiring == True:
+        for ac in range(self.numActuators):
+            for im in range(numPokeSteps):
+                curr_calc = (ac * numPokeSteps) + im + 1
+                self._logger.info("Frame %i captured" %(int(im)+1))
                 try:
-                    imStack[im, :, :] = self.acquire()
+                    self.mirror.send(actuator_values[(curr_calc-1),:])
                 except:
-                    time.sleep(1)
+                    self._logger.info("Actuator values being sent:")
+                    self._logger.info(actuator_values[(curr_calc-1),:])
+                    self._logger.info("Shape of actuator vector:")
+                    self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
+                self.acquiring = True
+                while self.acquiring == True:
+                    try:
+                        poke_image = self.acquire()
+                    except:
+                        time.sleep(1)
+                print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
+                image_unwrap = self.phaseunwrap(poke_image)
+                zernikeModeAmp[jj,:] = self.getzernikemodes(image_unwrap, nzernike)
+                all_zernikeModeAmp[(curr_calc-1),:] = zernikeModeAmp[jj,:]
+                print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
 
-        self.controlMatrix = self.createcontrolmatrix(imStack, nzernike, pokeSteps)
+            #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
+            for kk in range(nzernike):
+                print("Fitting regression %d/%d..." % (kk+1, nzernike))
+                slopes[kk], intercepts[kk], r_values[kk], p_values[kk], std_errs[kk] = stats.linregress(pokeSteps,zernikeModeAmp[:,kk])
+                print("Regression %d/%d fitted" % (kk + 1, nzernike))
+
+            #Input obtained slopes as the entries in the control matrix
+            C_mat[:,ii] = slopes[:]
+            offsets[:,ii] = intercepts[:]
+            P_tests[:,ii] = p_values[:]
+        print("Computing Control Matrix")
+        self.controlMatrix = np.linalg.pinv(C_mat)
+        print("Control Matrix computed")
 
         return self.controlMatrix
 
