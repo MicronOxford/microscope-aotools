@@ -82,7 +82,10 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def get_roi(self):
-        return self.roi
+        if self.roi is not None:
+            return self.roi
+        else:
+            raise Exception("No ROI selected")
 
     @Pyro4.expose
     def makemask(self, radius):
