@@ -85,7 +85,7 @@ class AdaptiveOpticsDevice(Device):
         if self.roi is not None:
             return self.roi
         else:
-            raise Exception("No ROI selected")
+            raise Exception("No region of interest selected. Please select a region of interest")
 
     @Pyro4.expose
     def makemask(self, radius):
