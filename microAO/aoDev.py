@@ -45,7 +45,6 @@ class AdaptiveOpticsDevice(Device):
         self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__,
                                                 camera_uri[1], camera_uri[2]))
         self.camera.enable()
-        self.exposure_time = self.camera.get_exposure_time()
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
@@ -95,16 +94,20 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def acquire(self):
-        self.camera.soft_trigger()
-        time.sleep(self.exposure_time)
         self.acquiring = True
         while self.acquiring == True:
-            data_raw = self.camera.get_current_image()
-            if data_raw is "ERROR 10: Timeout":
-                self._logger.info("Recieved Timeout error from camera. Waiting to try again...")
-                time.sleep(1)
-            else:
+            try:
+                self.camera.soft_trigger()
+                data_raw = self.camera.get_current_image()
                 self.acquiring = False
+            except Exception as e:
+                if str(e) == str("ERROR 10: Timeout"):
+                    self._logger.info("Recieved Timeout error from camera. Waiting to try again...")
+                    time.sleep(1)
+                else:
+                    self._logger.info(type(e))
+                    self._logger.info("Error is: %s" %(e))
+                    raise e
         if self.roi is not None:
             #self._logger.info('roi is not None')
             data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
@@ -411,6 +414,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def calibrate(self, numPokeSteps = 10):
+        self.camera.set_exposure_time(0.05)
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
@@ -460,7 +464,7 @@ class AdaptiveOpticsDevice(Device):
         for ac in range(self.numActuators):
             for im in range(numPokeSteps):
                 curr_calc = (ac * numPokeSteps) + im + 1
-                self._logger.info("Frame %i captured" %(int(im)+1))
+                self._logger.info("Frame %i/%i captured" %(curr_calc, noImages))
                 try:
                     self.mirror.send(actuator_values[(curr_calc-1),:])
                 except:
@@ -469,17 +473,17 @@ class AdaptiveOpticsDevice(Device):
                     self._logger.info("Shape of actuator vector:")
                     self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
                 poke_image = self.acquire()
-                print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
+                self._logger.info("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
                 image_unwrap = self.phaseunwrap(poke_image)
                 zernikeModeAmp[jj,:] = self.getzernikemodes(image_unwrap, nzernike)
                 all_zernikeModeAmp[(curr_calc-1),:] = zernikeModeAmp[jj,:]
-                print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
+                self._logger.info("Zernike modes %d/%d calculated" %(curr_calc, noImages))
 
             #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
             for kk in range(nzernike):
-                print("Fitting regression %d/%d..." % (kk+1, nzernike))
+                self._logger.info("Fitting regression %d/%d..." % (kk+1, nzernike))
                 slopes[kk], intercepts[kk], r_values[kk], p_values[kk], std_errs[kk] = stats.linregress(pokeSteps,zernikeModeAmp[:,kk])
-                print("Regression %d/%d fitted" % (kk + 1, nzernike))
+                self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
 
             #Input obtained slopes as the entries in the control matrix
             C_mat[:,ii] = slopes[:]
