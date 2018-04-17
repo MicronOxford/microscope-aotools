@@ -20,7 +20,6 @@
 
 #Import required packs
 import numpy as np
-import numpy.ma as ma
 from scipy.ndimage.measurements import center_of_mass
 from scipy.signal import tukey, gaussian
 import aotools
@@ -383,6 +382,7 @@ class AdaptiveOpticsDevice(Device):
         print("Control Matrix computed")
         return self.controlMatrix
 
+    @Pyro4.expose
     def acquire_unwrapped_phase(self):
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -401,11 +401,13 @@ class AdaptiveOpticsDevice(Device):
         interferogram_unwrap = self.phaseunwrap(interferogram)
         return interferogram_unwrap
 
+    @Pyro4.expose
     def measure_zernike(self,noZernikeModes):
         unwrapped_phase = self.acquire_unwrapped_phase()
         zernike_amps = self.getzernikemodes(unwrapped_phase,noZernikeModes)
         return zernike_amps
 
+    @Pyro4.expose
     def wavefront_rms_error(self):
         phase_map = self.acquire_unwrapped_phase()
         true_flat = np.zeros(np.shape(phase_map))
