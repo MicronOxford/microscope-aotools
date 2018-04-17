@@ -45,7 +45,6 @@ class AdaptiveOpticsDevice(Device):
         self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__,
                                                 camera_uri[1], camera_uri[2]))
         self.camera.enable()
-        self.exposure_time = self.camera.get_exposure_time()
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
@@ -95,26 +94,33 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def acquire(self):
-        self.camera.soft_trigger()
-        time.sleep(self.exposure_time)
-        data_raw = self.camera.get_current_image()
-        if data_raw is "Xi_error: ERROR 10: Timeout":
-            return
-        else:
-            if self.roi is not None:
-                self._logger.info('roi is not None')
-                data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
-                data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
-                           self.roi[1]-self.roi[2]:self.roi[1]+self.roi[2]]
-                if self.mask is not None:
-                    data = data_cropped * self.mask
+        self.acquiring = True
+        while self.acquiring == True:
+            try:
+                self.camera.soft_trigger()
+                data_raw = self.camera.get_current_image()
+                self.acquiring = False
+            except Exception as e:
+                if str(e) == str("ERROR 10: Timeout"):
+                    self._logger.info("Recieved Timeout error from camera. Waiting to try again...")
+                    time.sleep(1)
                 else:
-                    self.mask = self.makemask(self.roi[2])
-                    data = data_cropped * self.mask
+                    self._logger.info(type(e))
+                    self._logger.info("Error is: %s" %(e))
+                    raise e
+        if self.roi is not None:
+            #self._logger.info('roi is not None')
+            data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
+            data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
+                            self.roi[1]-self.roi[2]:self.roi[1]+self.roi[2]]
+            if self.mask is not None:
+                data = data_cropped * self.mask
             else:
-                data = data_raw
-            self.acquiring = False
-            return data
+                self.mask = self.makemask(self.roi[2])
+                data = data_cropped 
+        else:
+            data = data_raw
+        return data
 
     def bin_ndarray(self, ndarray, new_shape, operation='sum'):
         """
@@ -224,7 +230,12 @@ class AdaptiveOpticsDevice(Device):
         gauss = np.outer(x,x.T)
         gauss = gauss*(gauss>(np.max(x)*np.min(x)))
 
-        self.fft_filter[(maxpoint[1]-(gauss_dim/2)):(maxpoint[1]+(gauss_dim/2)),(maxpoint[0]-(gauss_dim/2)):(maxpoint[0]+(gauss_dim/2))] = gauss
+        y_min = maxpoint[1]-int(np.floor((gauss_dim/2.0)))
+        y_max = maxpoint[1]+int(np.ceil((gauss_dim/2.0)))
+        x_min = maxpoint[0]-int(np.floor((gauss_dim/2.0)))
+        x_max = maxpoint[0]+int(np.ceil((gauss_dim/2.0)))
+        
+        self.fft_filter[y_min:y_max,x_min:x_max] = gauss
         return self.fft_filter
 
     @Pyro4.expose
@@ -403,24 +414,27 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def calibrate(self, numPokeSteps = 10):
+        self.camera.set_exposure_time(0.05)
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        test_image = np.shape(np.asarray(self.acquire()))
-        (width, height) = test_image
-
+        test_image = np.asarray(self.acquire())
+        (width, height) = np.shape(test_image)
+        
         #Ensure the filters has been constructed
         if self.mask is not None:
             pass
         else:
-            self.mask = self.makemask(int(np.round(np.shape(test_image)[0]/2)))
-
+            self._logger.info("Constructing mask")
+            self.mask = self.makemask(self.roi[2])
+            
         if self.fft_filter is not None:
             pass
         else:
+            self._logger.info("Constructing Fourier filter")
             self.fft_filter = self.getfourierfilter(test_image[:,:])
 
         nzernike = self.numActuators
@@ -450,7 +464,7 @@ class AdaptiveOpticsDevice(Device):
         for ac in range(self.numActuators):
             for im in range(numPokeSteps):
                 curr_calc = (ac * numPokeSteps) + im + 1
-                self._logger.info("Frame %i captured" %(int(im)+1))
+                self._logger.info("Frame %i/%i captured" %(curr_calc, noImages))
                 try:
                     self.mirror.send(actuator_values[(curr_calc-1),:])
                 except:
@@ -458,23 +472,18 @@ class AdaptiveOpticsDevice(Device):
                     self._logger.info(actuator_values[(curr_calc-1),:])
                     self._logger.info("Shape of actuator vector:")
                     self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
-                self.acquiring = True
-                while self.acquiring == True:
-                    try:
-                        poke_image = self.acquire()
-                    except:
-                        time.sleep(1)
-                print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
+                poke_image = self.acquire()
+                self._logger.info("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
                 image_unwrap = self.phaseunwrap(poke_image)
                 zernikeModeAmp[jj,:] = self.getzernikemodes(image_unwrap, nzernike)
                 all_zernikeModeAmp[(curr_calc-1),:] = zernikeModeAmp[jj,:]
-                print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
+                self._logger.info("Zernike modes %d/%d calculated" %(curr_calc, noImages))
 
             #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
             for kk in range(nzernike):
-                print("Fitting regression %d/%d..." % (kk+1, nzernike))
+                self._logger.info("Fitting regression %d/%d..." % (kk+1, nzernike))
                 slopes[kk], intercepts[kk], r_values[kk], p_values[kk], std_errs[kk] = stats.linregress(pokeSteps,zernikeModeAmp[:,kk])
-                print("Regression %d/%d fitted" % (kk + 1, nzernike))
+                self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
 
             #Input obtained slopes as the entries in the control matrix
             C_mat[:,ii] = slopes[:]
