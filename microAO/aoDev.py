@@ -64,18 +64,35 @@ class AdaptiveOpticsDevice(Device):
         pass
 
     @Pyro4.expose
-    def set_roi(self, x0, y0, radius):
-        self.roi = (x0, y0, radius)
+    def get_n_actuators(self):
+        return self.numActuators
+
+    @Pyro4.expose
+    def send(self, values):
+        self.mirror.send(values)
+
+    @Pyro4.expose
+    def send_patterns(self, patterns):
+        self.mirror.send_patterns(patterns)
+
+    @Pyro4.expose
+    def set_roi(self, y0, x0, radius):
+        self.roi = (y0, x0, radius)
         try:
             assert self.roi is not None
         except:
             raise Exception("ROI assignment failed")
 
-        #self.mask = self.makemask(radius)
-        #try:
-        #    assert self.mask is not None
-        #except:
-        #    raise Exception("Mask construction failed")
+        #Mask will need to be reconstructed as radius has changed
+        self.mask = self.makemask(radius)
+        try:
+            assert self.mask is not None
+        except:
+            raise Exception("Mask construction failed")
+
+        #Fourier filter should be erased, as it's probably wrong. 
+        ##Might be unnecessary
+        self.fft_filter = None
         return
 
     @Pyro4.expose
@@ -90,6 +107,24 @@ class AdaptiveOpticsDevice(Device):
         diameter = radius * 2
         self.mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
         return self.mask
+
+    @Pyro4.expose
+    def acquire_raw(self):
+        self.acquiring = True
+        while self.acquiring == True:
+            try:
+                self.camera.soft_trigger()
+                data_raw = self.camera.get_current_image()
+                self.acquiring = False
+            except Exception as e:
+                if str(e) == str("ERROR 10: Timeout"):
+                    self._logger.info("Recieved Timeout error from camera. Waiting to try again...")
+                    time.sleep(1)
+                else:
+                    self._logger.info(type(e))
+                    self._logger.info("Error is: %s" %(e))
+                    raise e
+        return data_raw
 
     @Pyro4.expose
     def acquire(self):
@@ -174,15 +209,19 @@ class AdaptiveOpticsDevice(Device):
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
     @Pyro4.expose
-    def getfourierfilter(self, test_image, region=30):
+    def getfourierfilter(self, test_image, region=None):
         #Ensure an ROI is defined so a masked image is obtained
         try:
+
             assert self.roi is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
         #Convert image to array and float
         data = np.asarray(test_image)
+
+        if region is None:
+            region = int(data.shape[0]*(5.0/16.0))
 
         #Apply tukey window
         fringes = np.fft.fftshift(data)
@@ -394,12 +433,16 @@ class AdaptiveOpticsDevice(Device):
         if self.fft_filter is not None:
             pass
         else:
-            test_image = self.acquire()
-            self.fft_filter = self.getfourierfilter(test_image)
-
+            try:
+                test_image = self.acquire()
+                self.fft_filter = self.getfourierfilter(test_image)
+            except:
+                raise
+        self._logger.info("FFT filter created")
         interferogram = self.acquire()
         interferogram_unwrap = self.phaseunwrap(interferogram)
-        return interferogram_unwrap
+        self._logger.info("Phase unwrapped ")
+        return interferogram, interferogram_unwrap
 
     @Pyro4.expose
     def measure_zernike(self,noZernikeModes):
@@ -491,9 +534,9 @@ class AdaptiveOpticsDevice(Device):
             C_mat[:,ii] = slopes[:]
             offsets[:,ii] = intercepts[:]
             P_tests[:,ii] = p_values[:]
-        print("Computing Control Matrix")
+        self._logger.info("Computing Control Matrix")
         self.controlMatrix = np.linalg.pinv(C_mat)
-        print("Control Matrix computed")
+        self._logger.info("Control Matrix computed")
 
         return self.controlMatrix
 
