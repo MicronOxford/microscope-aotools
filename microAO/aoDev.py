@@ -221,7 +221,7 @@ class AdaptiveOpticsDevice(Device):
         data = np.asarray(test_image)
 
         if region is None:
-            region = int(data.shape[0]*(5.0/16.0))
+            region = int(data.shape[0]/8.0)
 
         #Apply tukey window
         fringes = np.fft.fftshift(data)
@@ -343,6 +343,10 @@ class AdaptiveOpticsDevice(Device):
         original_dim = int(np.shape(image_unwrap)[0])
         while original_dim%resize_dim is not 0:
             resize_dim -= 1
+            
+        if resize_dim < original_dim/resize_dim:
+            resize_dim = original_dim/resize_dim
+            
         image_resize = self.bin_ndarray(image_unwrap, new_shape=(resize_dim,resize_dim), operation='mean')
 
         #Calculate Zernike mode
