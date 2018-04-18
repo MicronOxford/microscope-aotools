@@ -442,7 +442,7 @@ class AdaptiveOpticsDevice(Device):
         interferogram = self.acquire()
         interferogram_unwrap = self.phaseunwrap(interferogram)
         self._logger.info("Phase unwrapped ")
-        return interferogram, interferogram_unwrap
+        return interferogram_unwrap
 
     @Pyro4.expose
     def measure_zernike(self,noZernikeModes):
