@@ -103,6 +103,18 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("No region of interest selected. Please select a region of interest")
 
     @Pyro4.expose
+    def set_controlMatrix(self,controlMatrix):
+        self.controlMatrix = controlMatrix
+        return
+
+    @Pyro4.expose
+    def get_roi(self):
+        if self.controlMatrix is not None:
+            return self.controlMatrix
+        else:
+            raise Exception("No control matrix calculated. Please calibrate the mirror")
+
+    @Pyro4.expose
     def makemask(self, radius):
         diameter = radius * 2
         self.mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
@@ -446,11 +458,11 @@ class AdaptiveOpticsDevice(Device):
         interferogram = self.acquire()
         interferogram_unwrap = self.phaseunwrap(interferogram)
         self._logger.info("Phase unwrapped ")
-        return interferogram_unwrap
+        return interferogram, interferogram_unwrap
 
     @Pyro4.expose
     def measure_zernike(self,noZernikeModes):
-        unwrapped_phase = self.acquire_unwrapped_phase()
+        interferogram, unwrapped_phase = self.acquire_unwrapped_phase()
         zernike_amps = self.getzernikemodes(unwrapped_phase,noZernikeModes)
         return zernike_amps
 
@@ -462,7 +474,7 @@ class AdaptiveOpticsDevice(Device):
         return rms_error
 
     @Pyro4.expose
-    def calibrate(self, numPokeSteps = 10):
+    def calibrate(self, numPokeSteps = 5):
         self.camera.set_exposure_time(0.05)
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -493,6 +505,9 @@ class AdaptiveOpticsDevice(Device):
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*nzernike
 
+        image_stack_cropped = np.zeros((noImages,self.roi[2]*2,self.roi[2]*2))
+        unwrapped_stack = np.zeros((noImages,self.roi[2]*2,self.roi[2]*2))
+
         slopes = np.zeros(nzernike)
         intercepts = np.zeros(nzernike)
         r_values = np.zeros(nzernike)
@@ -522,8 +537,10 @@ class AdaptiveOpticsDevice(Device):
                     self._logger.info("Shape of actuator vector:")
                     self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
                 poke_image = self.acquire()
+                image_stack_cropped[curr_calc-1,:,:] = poke_image
                 self._logger.info("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
                 image_unwrap = self.phaseunwrap(poke_image)
+                unwrapped_stack[curr_calc-1,:,:] = image_unwrap
                 zernikeModeAmp[jj,:] = self.getzernikemodes(image_unwrap, nzernike)
                 all_zernikeModeAmp[(curr_calc-1),:] = zernikeModeAmp[jj,:]
                 self._logger.info("Zernike modes %d/%d calculated" %(curr_calc, noImages))
@@ -535,12 +552,15 @@ class AdaptiveOpticsDevice(Device):
                 self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
 
             #Input obtained slopes as the entries in the control matrix
-            C_mat[:,ii] = slopes[:]
-            offsets[:,ii] = intercepts[:]
-            P_tests[:,ii] = p_values[:]
+            C_mat[:,ac] = slopes[:]
+            offsets[:,ac] = intercepts[:]
+            P_tests[:,ac] = p_values[:]
         self._logger.info("Computing Control Matrix")
         self.controlMatrix = np.linalg.pinv(C_mat)
         self._logger.info("Control Matrix computed")
+        np.save("image_stack_cropped",image_stack_cropped)
+        np.save("unwrapped_stack",unwrapped_stack)
+        np.save("C_mat", C_mat)
 
         return self.controlMatrix
 
@@ -567,7 +587,7 @@ class AdaptiveOpticsDevice(Device):
                             "actuators do not match.")
 
         flat_actuators = np.zeros(numActuators)
-        self.mirror.apply_pattern(flat_actuators)
+        self.mirror.send(flat_actuators)
         previous_flat_actuators = np.zeros(numActuators)
 
         z_amps = np.zeros(nzernike)
@@ -582,7 +602,7 @@ class AdaptiveOpticsDevice(Device):
             z_amps[:] = self.getzernikemodes(interferogram_unwrap, nzernike)
             flat_actuators[:] = -1.0 * np.dot(self.controlMatrix, z_amps)
 
-            self.mirror.apply_pattern(flat_actuators)
+            self.mirror.send(flat_actuators)
 
             true_flat = np.zeros(np.shape(interferogram_unwrap))
             rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
@@ -607,7 +627,7 @@ class AdaptiveOpticsDevice(Device):
         actuator_pos = np.zeros(self.numActuators)
         actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes)
 
-        self.mirror.apply_pattern(actuator_pos)
+        self.mirror.send(actuator_pos)
         return
 
     @Pyro4.expose
@@ -616,10 +636,12 @@ class AdaptiveOpticsDevice(Device):
             modes_tba = self.numActuators
         assay = np.zeros((modes_tba,modes_tba))
         applied_z_modes = np.zeros(modes_tba)
-        for ii in modes_tba:
+        for ii in range(modes_tba):
             applied_z_modes[ii] = 1
             self.set_phase(applied_z_modes)
+            self._logger.info("Appling Zernike mode %i/%i" %(ii,modes_tba))
             acquired_z_modes = self.measure_zernike(modes_tba)
+            self._logger.info("Measured phase")
             assay[:,ii] = acquired_z_modes
             applied_z_modes[ii] = 0
         return assay
