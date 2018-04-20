@@ -280,19 +280,26 @@ class AdaptiveOpticsDevice(Device):
             maxpoint[1] = maxpoint[1] - 25 + int(CoM[0,0])
 
         self.fft_filter = np.zeros(np.shape(fftarray))
-        gauss_dim = min(int(data.shape[0]*(5.0/16.0)), (maxpoint[0]-maxpoint[0]%2), (maxpoint[1]-maxpoint[1]%2))
-        FWHM = int((3.0/8.0) * gauss_dim)
-        stdv = FWHM/np.sqrt(8 * np.log(2))
-        x = gaussian(gauss_dim,stdv)
-        gauss = np.outer(x,x.T)
-        gauss = gauss*(gauss>(np.max(x)*np.min(x)))
-
-        y_min = maxpoint[1]-int(np.floor((gauss_dim/2.0)))
-        y_max = maxpoint[1]+int(np.ceil((gauss_dim/2.0)))
-        x_min = maxpoint[0]-int(np.floor((gauss_dim/2.0)))
-        x_max = maxpoint[0]+int(np.ceil((gauss_dim/2.0)))
+        mask_di = min(int(data.shape[0]*(5.0/16.0)), (maxpoint[0]-maxpoint[0]%2), (maxpoint[1]-maxpoint[1]%2))
+        #FWHM = int((3.0/8.0) * mask_di)
+        #stdv = FWHM/np.sqrt(8 * np.log(2))
+        #x = gaussian(mask_dim,stdv)
+        #gauss = np.outer(x,x.T)
+        #fourier_mask = gauss*(gauss>(np.max(x)*np.min(x)))
         
-        self.fft_filter[y_min:y_max,x_min:x_max] = gauss
+        #mask_rad = mask_di/2
+        #fourier_mask = np.sqrt((np.arange(-mask_rad,mask_rad)**2).reshape(
+        #              (mask_di,1)) + (np.arange(-mask_rad,mask_rad)**2)) < mask_rad
+        
+        x = np.sin(np.linspace(0, np.pi, mask_di))**2
+        fourier_mask = np.outer(x,x.T)
+
+        y_min = maxpoint[1]-int(np.floor((mask_di/2.0)))
+        y_max = maxpoint[1]+int(np.ceil((mask_di/2.0)))
+        x_min = maxpoint[0]-int(np.floor((mask_di/2.0)))
+        x_max = maxpoint[0]+int(np.ceil((mask_di/2.0)))
+        
+        self.fft_filter[y_min:y_max,x_min:x_max] = fourier_mask
         return self.fft_filter
 
     @Pyro4.expose
@@ -461,7 +468,6 @@ class AdaptiveOpticsDevice(Device):
                 self.fft_filter = self.set_fourierfilter(test_image)
             except:
                 raise
-        self._logger.info("FFT filter created")
         interferogram = self.acquire()
         interferogram_unwrap = self.phaseunwrap(interferogram)
         self._logger.info("Phase unwrapped ")
@@ -639,6 +645,16 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def assess_character(self, modes_tba = None):
+        #Ensure a Fourier filter has been constructed
+        if self.fft_filter is not None:
+            pass
+        else:
+            try:
+                test_image = self.acquire()
+                self.fft_filter = self.set_fourierfilter(test_image)
+            except:
+                raise
+    
         if modes_tba is None:
             modes_tba = self.numActuators
         assay = np.zeros((modes_tba,modes_tba))
@@ -651,4 +667,5 @@ class AdaptiveOpticsDevice(Device):
             self._logger.info("Measured phase")
             assay[:,ii] = acquired_z_modes
             applied_z_modes[ii] = 0
+        self.mirror.reset()
         return assay
