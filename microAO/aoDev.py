@@ -103,6 +103,13 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("No region of interest selected. Please select a region of interest")
 
     @Pyro4.expose
+    def get_fourierfilter(self):
+        if self.fft_filter is not None:
+            return self.fft_filter
+        else:
+            raise Exception("No Fourier filter created. Please create one.")
+
+    @Pyro4.expose
     def set_controlMatrix(self,controlMatrix):
         self.controlMatrix = controlMatrix
         return
@@ -221,7 +228,7 @@ class AdaptiveOpticsDevice(Device):
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
     @Pyro4.expose
-    def getfourierfilter(self, test_image, region=None):
+    def set_fourierfilter(self, test_image, region=None):
         #Ensure an ROI is defined so a masked image is obtained
         try:
 
@@ -308,7 +315,7 @@ class AdaptiveOpticsDevice(Device):
         if self.fft_filter is not None:
             pass
         else:
-            self.fft_filter = self.getfourierfilter(image)
+            self.fft_filter = self.set_fourierfilter(image)
 
         #Convert image to array and float
         data = np.asarray(image)
@@ -387,7 +394,7 @@ class AdaptiveOpticsDevice(Device):
         if self.fft_filter is not None:
             pass
         else:
-            self.fft_filter = self.getfourierfilter(imageStack[0,:,:])
+            self.fft_filter = self.set_fourierfilter(imageStack[0,:,:])
 
         slopes = np.zeros(noZernikeModes)
         intercepts = np.zeros(noZernikeModes)
@@ -451,7 +458,7 @@ class AdaptiveOpticsDevice(Device):
         else:
             try:
                 test_image = self.acquire()
-                self.fft_filter = self.getfourierfilter(test_image)
+                self.fft_filter = self.set_fourierfilter(test_image)
             except:
                 raise
         self._logger.info("FFT filter created")
@@ -496,7 +503,7 @@ class AdaptiveOpticsDevice(Device):
             pass
         else:
             self._logger.info("Constructing Fourier filter")
-            self.fft_filter = self.getfourierfilter(test_image[:,:])
+            self.fft_filter = self.set_fourierfilter(test_image[:,:])
 
         nzernike = self.numActuators
 
@@ -577,7 +584,7 @@ class AdaptiveOpticsDevice(Device):
             pass
         else:
             test_image = self.acquire()
-            self.fft_filter = self.getfourierfilter(test_image)
+            self.fft_filter = self.set_fourierfilter(test_image)
 
         numActuators, nzernike = np.shape(controlMatrix)
         try:
