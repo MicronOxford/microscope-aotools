@@ -283,7 +283,7 @@ class AdaptiveOpticsDevice(Device):
         mask_di = min(int(data.shape[0]*(5.0/16.0)), (maxpoint[0]-maxpoint[0]%2), (maxpoint[1]-maxpoint[1]%2))
         #FWHM = int((3.0/8.0) * mask_di)
         #stdv = FWHM/np.sqrt(8 * np.log(2))
-        #x = gaussian(mask_dim,stdv)
+        #x = gaussian(mask_di,stdv)
         #gauss = np.outer(x,x.T)
         #fourier_mask = gauss*(gauss>(np.max(x)*np.min(x)))
         
