@@ -487,7 +487,7 @@ class AdaptiveOpticsDevice(Device):
         return rms_error
 
     @Pyro4.expose
-    def calibrate(self, numPokeSteps = 6):
+    def calibrate(self, numPokeSteps = 5):
         self.camera.set_exposure_time(0.05)
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -513,8 +513,8 @@ class AdaptiveOpticsDevice(Device):
 
         nzernike = self.numActuators
 
-        poke_min = -0.75
-        poke_max = 0.75
+        poke_min = -0.5
+        poke_max = 0.5
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*nzernike
 
