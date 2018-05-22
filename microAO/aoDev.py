@@ -594,7 +594,7 @@ class AdaptiveOpticsDevice(Device):
         return self.controlMatrix
 
     @Pyro4.expose
-    def flatten_phase(self, controlMatrix, iterations = 1):
+    def flatten_phase(self, iterations = 1):
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
@@ -608,7 +608,7 @@ class AdaptiveOpticsDevice(Device):
             test_image = self.acquire()
             self.fft_filter = self.set_fourierfilter(test_image)
 
-        numActuators, nzernike = np.shape(controlMatrix)
+        numActuators, nzernike = np.shape(self.controlMatrix)
         try:
             assert numActuators == self.numActuators
         except:
@@ -644,7 +644,7 @@ class AdaptiveOpticsDevice(Device):
         return flat_actuators
 
     @Pyro4.expose
-    def set_phase(self, applied_z_modes):
+    def set_phase(self, applied_z_modes, offset = None):
         if int(np.shape(applied_z_modes)[0]) < int(np.shape(self.controlMatrix)[1]):
             pad_length = int(np.shape(applied_z_modes)[0]) - int(np.shape(self.controlMatrix)[1])
             np.pad(applied_z_modes, (0,pad_length), 'constant')
@@ -654,7 +654,10 @@ class AdaptiveOpticsDevice(Device):
             pass
 
         actuator_pos = np.zeros(self.numActuators)
-        actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes)
+        if offset is not None:
+            actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes) + offset
+        else:
+            actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes)
 
         self.mirror.send(actuator_pos)
         return
@@ -670,14 +673,16 @@ class AdaptiveOpticsDevice(Device):
                 self.fft_filter = self.set_fourierfilter(test_image)
             except:
                 raise
-    
+
+        flat_values = self.flatten_phase(iterations=10)
+
         if modes_tba is None:
             modes_tba = self.numActuators
         assay = np.zeros((modes_tba,modes_tba))
         applied_z_modes = np.zeros(modes_tba)
         for ii in range(modes_tba):
             applied_z_modes[ii] = 1
-            self.set_phase(applied_z_modes)
+            self.set_phase(applied_z_modes, offset=flat_values)
             self._logger.info("Appling Zernike mode %i/%i" %(ii,modes_tba))
             acquired_z_modes = self.measure_zernike(modes_tba)
             self._logger.info("Measured phase")
