@@ -629,7 +629,10 @@ class AdaptiveOpticsDevice(Device):
 
             interferogram_unwrap = self.phaseunwrap(interferogram)
             z_amps[:] = self.getzernikemodes(interferogram_unwrap, nzernike)
-            flat_actuators[:] = -1.0 * np.dot(self.controlMatrix, z_amps)
+            flat_actuators[:] = previous_flat_actuators - 1.0 * np.dot(self.controlMatrix, z_amps)
+
+            flat_actuators[np.where(flat_actuators > 1)] = 1
+            flat_actuators[np.where(flat_actuators < -1)] = -1
 
             self.mirror.send(flat_actuators)
 
@@ -640,6 +643,12 @@ class AdaptiveOpticsDevice(Device):
                 previous_flat_actuators[:] = flat_actuators[:]
             else:
                 print("Ringing occured after %f iterations") %(ii + 1)
+
+            try:
+                assert np.all(abs(flat_actuators)<1)
+            except:
+                raise Exception("All actuators at max stroke length")
+
 
         return flat_actuators
 
@@ -680,7 +689,7 @@ class AdaptiveOpticsDevice(Device):
             modes_tba = self.numActuators
         assay = np.zeros((modes_tba,modes_tba))
         applied_z_modes = np.zeros(modes_tba)
-        for ii in range(modes_tba):
+        for ii in range(3,modes_tba):
             applied_z_modes[ii] = 1
             self.set_phase(applied_z_modes, offset=flat_values)
             self._logger.info("Appling Zernike mode %i/%i" %(ii,modes_tba))
