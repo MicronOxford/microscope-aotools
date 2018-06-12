@@ -513,8 +513,8 @@ class AdaptiveOpticsDevice(Device):
 
         nzernike = self.numActuators
 
-        poke_min = -0.5
-        poke_max = 0.5
+        poke_min = -0.65
+        poke_max = 0.65
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*nzernike
 
@@ -572,6 +572,8 @@ class AdaptiveOpticsDevice(Device):
 
             pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
             zernikeModeAmp = np.asarray(zernikeModeAmp_list)
+
+            zernikeModeAmp[:,0:3] = 0
 
             #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
             for kk in range(nzernike):
