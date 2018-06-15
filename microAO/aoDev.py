@@ -585,6 +585,8 @@ class AdaptiveOpticsDevice(Device):
                 self._logger.info("Fitting regression %d/%d..." % (kk+1, nzernike))
                 slopes[kk],intercepts[kk],r_values[kk],p_values[kk],std_errs[kk] = \
                     stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
+                if abs(slopes[kk]) < 1.3767:
+                    slopes[kk] = 0
                 self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
 
             #Input obtained slopes as the entries in the control matrix
