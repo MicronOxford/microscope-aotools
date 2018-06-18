@@ -116,6 +116,13 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def get_roi(self):
+        if self.roi is not None:
+            return self.roi
+        else:
+            raise Exception("No control matrix calculated. Please calibrate the mirror")
+
+    @Pyro4.expose
+    def get_controlMatrix(self):
         if self.controlMatrix is not None:
             return self.controlMatrix
         else:
@@ -558,7 +565,7 @@ class AdaptiveOpticsDevice(Device):
                 image_stack_cropped[curr_calc-1,:,:] = poke_image
                 image_unwrap = self.phaseunwrap(poke_image)
                 unwrapped_stack[curr_calc-1,:,:] = image_unwrap
-                diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask
+                diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
                 if np.any(diff_image > 2*np.pi):
                     self._logger.info("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
                     self._logger.info("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
