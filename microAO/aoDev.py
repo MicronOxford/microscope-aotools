@@ -620,12 +620,13 @@ class AdaptiveOpticsDevice(Device):
                     if abs(slopes[kk]) < 1.3767:#Gives all actuator positions < +-1.
                         slopes[kk] = 0
                     self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
-                else:
-                    self._logger.info("Actuator %d is not in the pupil and therefore skipped" % (ac))
+
                 #Input obtained slopes as the entries in the control matrix
                 C_mat[:,ac] = slopes[:]
                 offsets[:,ac] = intercepts[:]
                 P_tests[:,ac] = p_values[:]
+            else:
+                self._logger.info("Actuator %d is not in the pupil and therefore skipped" % (ac))
 
         self._logger.info("Computing Control Matrix")
         self.controlMatrix = np.linalg.pinv(C_mat)
