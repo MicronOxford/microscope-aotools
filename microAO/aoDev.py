@@ -575,55 +575,58 @@ class AdaptiveOpticsDevice(Device):
             (self.roi[2]*2,1)) + (np.arange(-self.roi[2],self.roi[2])**2)) < self.roi[2]-3
 
         for ac in range(self.numActuators):
-            pokeSteps_trimmed_list = []
-            zernikeModeAmp_list = []
-            for im in range(numPokeSteps):
-                curr_calc = (ac * numPokeSteps) + im + 1
-                self._logger.info("Frame %i/%i captured" %(curr_calc, noImages))
-                try:
-                    self.mirror.send(actuator_values[(curr_calc-1),:])
-                except:
-                    self._logger.info("Actuator values being sent:")
-                    self._logger.info(actuator_values[(curr_calc-1),:])
-                    self._logger.info("Shape of actuator vector:")
-                    self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
-                poke_image = self.acquire()
-                image_stack_cropped[curr_calc-1,:,:] = poke_image
-                image_unwrap = self.phaseunwrap(poke_image)
-                unwrapped_stack[curr_calc-1,:,:] = image_unwrap
-                diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
-                if np.any(diff_image > 2*np.pi):
-                    self._logger.info("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
-                    self._logger.info("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
+            if self.pupil_ac[ac] == 1:
+                pokeSteps_trimmed_list = []
+                zernikeModeAmp_list = []
+                for im in range(numPokeSteps):
+                    curr_calc = (ac * numPokeSteps) + im + 1
+                    self._logger.info("Frame %i/%i captured" %(curr_calc, noImages))
+                    try:
+                        self.mirror.send(actuator_values[(curr_calc-1),:])
+                    except:
+                        self._logger.info("Actuator values being sent:")
+                        self._logger.info(actuator_values[(curr_calc-1),:])
+                        self._logger.info("Shape of actuator vector:")
+                        self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
+                    poke_image = self.acquire()
+                    image_stack_cropped[curr_calc-1,:,:] = poke_image
+                    image_unwrap = self.phaseunwrap(poke_image)
+                    unwrapped_stack[curr_calc-1,:,:] = image_unwrap
+                    diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
+                    if np.any(diff_image > 2*np.pi):
+                        self._logger.info("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
+                        self._logger.info("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
+                    else:
+                        pokeSteps_trimmed_list.append(pokeSteps[im])
+                        self._logger.info("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
+                        curr_amps = self.getzernikemodes(image_unwrap, nzernike)
+                        thresh_amps = curr_amps * (abs(curr_amps)>0.5)
+                        zernikeModeAmp_list.append(thresh_amps)
+                        all_zernikeModeAmp[(curr_calc-1),:] = thresh_amps
+                        self._logger.info("Zernike modes %d/%d calculated" %(curr_calc, noImages))
+
+                pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
+                zernikeModeAmp = np.asarray(zernikeModeAmp_list)
+
+                #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
+                for kk in range(nzernike):
+                    self._logger.info("Fitting regression %d/%d..." % (kk+1, nzernike))
+                    try:
+                        slopes[kk],intercepts[kk],r_values[kk],p_values[kk],std_errs[kk] = \
+                            stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
+                    except Exception as e:
+                        self._logger.info(e)
+                    #if abs(slopes[kk]) < 1.854646: #Gives all actuator positions < +-0.5
+                    if abs(slopes[kk]) < 1.3767:#Gives all actuator positions < +-1.
+                        slopes[kk] = 0
+                    self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
                 else:
-                    pokeSteps_trimmed_list.append(pokeSteps[im])
-                    self._logger.info("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
-                    curr_amps = self.getzernikemodes(image_unwrap, nzernike)
-                    thresh_amps = curr_amps * (abs(curr_amps)>0.5)
-                    zernikeModeAmp_list.append(thresh_amps)
-                    all_zernikeModeAmp[(curr_calc-1),:] = thresh_amps
-                    self._logger.info("Zernike modes %d/%d calculated" %(curr_calc, noImages))
+                    self._logger.info("Actuator %d is not in the pupil and therefore skipped" % (ac))
+                #Input obtained slopes as the entries in the control matrix
+                C_mat[:,ac] = slopes[:]
+                offsets[:,ac] = intercepts[:]
+                P_tests[:,ac] = p_values[:]
 
-            pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
-            zernikeModeAmp = np.asarray(zernikeModeAmp_list)
-
-            #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
-            for kk in range(nzernike):
-                self._logger.info("Fitting regression %d/%d..." % (kk+1, nzernike))
-                try:
-                    slopes[kk],intercepts[kk],r_values[kk],p_values[kk],std_errs[kk] = \
-                        stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
-                except Exception as e:
-                    self._logger.info(e)
-                #if abs(slopes[kk]) < 1.854646: #Gives all actuator positions < +-0.5
-                if abs(slopes[kk]) < 1.3767:#Gives all actuator positions < +-1.
-                    slopes[kk] = 0
-                self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
-
-            #Input obtained slopes as the entries in the control matrix
-            C_mat[:,ac] = slopes[:]
-            offsets[:,ac] = intercepts[:]
-            P_tests[:,ac] = p_values[:]
         self._logger.info("Computing Control Matrix")
         self.controlMatrix = np.linalg.pinv(C_mat)
         self._logger.info("Control Matrix computed")
