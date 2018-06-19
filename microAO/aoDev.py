@@ -550,7 +550,7 @@ class AdaptiveOpticsDevice(Device):
         poke_min = -0.65
         poke_max = 0.65
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
-        noImages = numPokeSteps*nzernike
+        noImages = numPokeSteps*(np.shape(np.where(self.pupil_ac == 1))[1])
 
         image_stack_cropped = np.zeros((noImages,self.roi[2]*2,self.roi[2]*2))
         unwrapped_stack = np.zeros((noImages,self.roi[2]*2,self.roi[2]*2))
