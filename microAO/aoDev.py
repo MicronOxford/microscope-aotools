@@ -57,6 +57,33 @@ class AdaptiveOpticsDevice(Device):
         #Control Matrix
         self.controlMatrix = None
 
+        ##We don't use all the actuators. Create a mask for the actuators outside
+        ##the pupil so we can selectively calibrate them. 0 denotes actuators at
+        ##the edge, i.e. outside the pupil, and 1 denotes actuators in the pupil
+
+        #Use this if all actuators are being used
+        #self.pupil_ac = np.ones(self.numActuators)
+
+        #Preliminary mask for DeepSIM
+        self.pupil_ac = np.asarray([0,0,0,0,0,
+                                    0,0,1,1,1,0,0,
+                                    0,0,1,1,1,1,1,0,0,
+                                    0,1,1,1,1,1,1,1,0,
+                                    0,1,1,1,1,1,1,1,0,
+                                    0,1,1,1,1,1,1,1,0,
+                                    0,0,1,1,1,1,1,0,0,
+                                    0,0,1,1,1,0,0,
+                                    0,0,0,0,0])
+
+        try:
+            assert np.shape(self.pupil_ac) == self.numActuators
+        except:
+            raise Exception("Length mismatch between pupil mask (%i) and "
+                            "number of actuators (%i). Please provide a mask "
+                            "of the correct length" %(np.shape(self.pupil_ac),
+                                                      self.numActuators))
+
+
     def _on_shutdown(self):
         pass
 
