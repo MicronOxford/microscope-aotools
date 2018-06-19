@@ -419,7 +419,7 @@ class AdaptiveOpticsDevice(Device):
         return coef
 
     @Pyro4.expose
-    def createcontrolmatrix(self, imageStack, noZernikeModes, pokeSteps):
+    def createcontrolmatrix(self, imageStack, noZernikeModes, pokeSteps, pupil_ac = None):
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
@@ -436,6 +436,11 @@ class AdaptiveOpticsDevice(Device):
             pass
         else:
             self.fft_filter = self.set_fourierfilter(imageStack[0,:,:])
+
+        if pupil_ac == None:
+            pupil_ac = self.pupil_ac
+        else:
+            pass
 
         slopes = np.zeros(noZernikeModes)
         intercepts = np.zeros(noZernikeModes)
@@ -456,30 +461,55 @@ class AdaptiveOpticsDevice(Device):
         offsets = np.zeros((noZernikeModes,self.numActuators))
         P_tests = np.zeros((noZernikeModes,self.numActuators))
 
+        edge_mask = np.sqrt((np.arange(-self.roi[2],self.roi[2])**2).reshape(
+            (self.roi[2]*2,1)) + (np.arange(-self.roi[2],self.roi[2])**2)) < self.roi[2]-3
+
         # Here the each image in the image stack (read in as np.array), centre and4 diameter should be passed to the unwrap
         # function to obtain the Zernike modes for each one. For the moment a set of random Zernike modes are generated.
         for ii in range(self.numActuators):
+            if pupil_ac[ii] == 1:
+                pokeSteps_trimmed_list = []
+                zernikeModeAmp_list = []
+                #Get the amplitudes of each Zernike mode for the poke range of one actuator
+                for jj in range(numPokeSteps):
+                    curr_calc = (ii * numPokeSteps) + jj + 1
+                    print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
+                    image_unwrap = self.phaseunwrap(imageStack[((ii * numPokeSteps) + jj),:,:])
+                    diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
+                    if np.any(diff_image > 2*np.pi):
+                        self._logger.info("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
+                        self._logger.info("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
+                    else:
+                        pokeSteps_trimmed_list.append(pokeSteps[jj])
+                        self._logger.info("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
+                        curr_amps = self.getzernikemodes(image_unwrap, noZernikeModes)
+                        thresh_amps = curr_amps * (abs(curr_amps)>0.5)
+                        zernikeModeAmp_list.append(thresh_amps)
+                        all_zernikeModeAmp[(curr_calc-1),:] = thresh_amps
+                        self._logger.info("Zernike modes %d/%d calculated" %(curr_calc, noImages))
 
-            #Get the amplitudes of each Zernike mode for the poke range of one actuator
-            for jj in range(numPokeSteps):
-                curr_calc = (ii * numPokeSteps) + jj + 1
-                print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
-                image_unwrap = self.phaseunwrap(imageStack[((ii * numPokeSteps) + jj),:,:])
-                zernikeModeAmp[jj,:] = self.getzernikemodes(image_unwrap, noZernikeModes)
-                all_zernikeModeAmp[((ii * numPokeSteps) + jj),:] = zernikeModeAmp[jj,:]
-                print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
+                pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
+                zernikeModeAmp = np.asarray(zernikeModeAmp_list)
 
-            #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
-            for kk in range(noZernikeModes):
-                print("Fitting regression %d/%d..." % (kk+1, noZernikeModes))
-                slopes[kk], intercepts[kk], r_values[kk], p_values[kk], std_errs[kk] = stats.linregress(pokeSteps,zernikeModeAmp[:,kk])
-                print("Regression %d/%d fitted" % (kk + 1, noZernikeModes))
+                #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
+                for kk in range(noZernikeModes):
+                    self._logger.info("Fitting regression %d/%d..." % (kk+1, noZernikeModes))
+                    try:
+                        slopes[kk],intercepts[kk],r_values[kk],p_values[kk],std_errs[kk] = \
+                            stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
+                    except Exception as e:
+                        self._logger.info(e)
+                    #if abs(slopes[kk]) < 1.854646: #Gives all actuator positions < +-0.5
+                    if abs(slopes[kk]) < 1.3767:#Gives all actuator positions < +-1.
+                        slopes[kk] = 0
+                    self._logger.info("Regression %d/%d fitted" % (kk + 1, noZernikeModes))
 
-
-            #Input obtained slopes as the entries in the control matrix
-            C_mat[:,ii] = slopes[:]
-            offsets[:,ii] = intercepts[:]
-            P_tests[:,ii] = p_values[:]
+                #Input obtained slopes as the entries in the control matrix
+                C_mat[:,ii] = slopes[:]
+                offsets[:,ii] = intercepts[:]
+                P_tests[:,ii] = p_values[:]
+            else:
+                self._logger.info("Actuator %d is not in the pupil and therefore skipped" % (ii))
         print("Computing Control Matrix")
         self.controlMatrix = np.linalg.pinv(C_mat)
         print("Control Matrix computed")
