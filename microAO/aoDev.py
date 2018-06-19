@@ -539,7 +539,6 @@ class AdaptiveOpticsDevice(Device):
             for jj in range(numPokeSteps):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
 
-        curr_amps = np.zeros(nzernike)
         C_mat = np.zeros((nzernike,self.numActuators))
         all_zernikeModeAmp = np.ones((noImages,nzernike))
         offsets = np.zeros((nzernike,self.numActuators))
@@ -573,8 +572,9 @@ class AdaptiveOpticsDevice(Device):
                     pokeSteps_trimmed_list.append(pokeSteps[im])
                     self._logger.info("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
                     curr_amps = self.getzernikemodes(image_unwrap, nzernike)
-                    zernikeModeAmp_list.append(curr_amps)
-                    all_zernikeModeAmp[(curr_calc-1),:] = curr_amps
+                    thresh_amps = curr_amps * (abs(curr_amps)>0.5)
+                    zernikeModeAmp_list.append(thresh_amps)
+                    all_zernikeModeAmp[(curr_calc-1),:] = thresh_amps
                     self._logger.info("Zernike modes %d/%d calculated" %(curr_calc, noImages))
 
             pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
