@@ -589,8 +589,8 @@ class AdaptiveOpticsDevice(Device):
                 except Exception as e:
                     self._logger.info(e)
                 #if abs(slopes[kk]) < 1.854646: #Gives all actuator positions < +-0.5
-                #if abs(slopes[kk]) < 1.3767:#Gives all actuator positions < +-1.
-                #    slopes[kk] = 0
+                if abs(slopes[kk]) < 1.3767:#Gives all actuator positions < +-1.
+                    slopes[kk] = 0
                 self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
 
             #Input obtained slopes as the entries in the control matrix
