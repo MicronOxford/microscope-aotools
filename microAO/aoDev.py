@@ -65,15 +65,16 @@ class AdaptiveOpticsDevice(Device):
         #self.pupil_ac = np.ones(self.numActuators)
 
         #Preliminary mask for DeepSIM
-        self.pupil_ac = np.asarray([0,0,0,0,0,
-                                    0,0,1,1,1,0,0,
-                                    0,0,1,1,1,1,1,0,0,
-                                    0,1,1,1,1,1,1,1,0,
-                                    0,1,1,1,1,1,1,1,0,
-                                    0,1,1,1,1,1,1,1,0,
-                                    0,0,1,1,1,1,1,0,0,
-                                    0,0,1,1,1,0,0,
-                                    0,0,0,0,0])
+        #self.pupil_ac = np.asarray([0,0,0,0,0,
+        #                            0,0,1,1,1,0,0,
+        #                            0,0,1,1,1,1,1,0,0,
+        #                            0,1,1,1,1,1,1,1,0,
+        #                            0,1,1,1,1,1,1,1,0,
+        #                            0,1,1,1,1,1,1,1,0,
+        #                            0,0,1,1,1,1,1,0,0,
+        #                            0,0,1,1,1,0,0,
+        #                            0,0,0,0,0])
+        self.pupil_ac = np.zeros(self.numActuators)
 
         try:
             assert np.shape(self.pupil_ac) == self.numActuators
@@ -456,10 +457,12 @@ class AdaptiveOpticsDevice(Device):
         [noImages, x, y] = np.shape(imageStack)
         numPokeSteps = len(pokeSteps)
         zernikeModeAmp = np.zeros((numPokeSteps,noZernikeModes))
+
         C_mat = np.zeros((noZernikeModes,self.numActuators))
         all_zernikeModeAmp = np.ones((noImages,noZernikeModes))
         offsets = np.zeros((noZernikeModes,self.numActuators))
         P_tests = np.zeros((noZernikeModes,self.numActuators))
+        threshold = 0.005 #Threshold for pinv later
 
         edge_mask = np.sqrt((np.arange(-self.roi[2],self.roi[2])**2).reshape(
             (self.roi[2]*2,1)) + (np.arange(-self.roi[2],self.roi[2])**2)) < self.roi[2]-3
@@ -499,9 +502,6 @@ class AdaptiveOpticsDevice(Device):
                             stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
                     except Exception as e:
                         self._logger.info(e)
-                    #if abs(slopes[kk]) < 1.854646: #Gives all actuator positions < +-0.5
-                    if abs(slopes[kk]) < 1.3767:#Gives all actuator positions < +-1.
-                        slopes[kk] = 0
                     self._logger.info("Regression %d/%d fitted" % (kk + 1, noZernikeModes))
 
                 #Input obtained slopes as the entries in the control matrix
@@ -511,7 +511,7 @@ class AdaptiveOpticsDevice(Device):
             else:
                 self._logger.info("Actuator %d is not in the pupil and therefore skipped" % (ii))
         print("Computing Control Matrix")
-        self.controlMatrix = np.linalg.pinv(C_mat)
+        self.controlMatrix = np.linalg.pinv(C_mat, rcond=threshold)
         print("Control Matrix computed")
         return self.controlMatrix
 
@@ -600,6 +600,7 @@ class AdaptiveOpticsDevice(Device):
         all_zernikeModeAmp = np.ones((noImages,nzernike))
         offsets = np.zeros((nzernike,self.numActuators))
         P_tests = np.zeros((nzernike,self.numActuators))
+        threshold = 0.005 #Threshold for pinv later
 
         edge_mask = np.sqrt((np.arange(-self.roi[2],self.roi[2])**2).reshape(
             (self.roi[2]*2,1)) + (np.arange(-self.roi[2],self.roi[2])**2)) < self.roi[2]-3
@@ -646,9 +647,6 @@ class AdaptiveOpticsDevice(Device):
                             stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
                     except Exception as e:
                         self._logger.info(e)
-                    #if abs(slopes[kk]) < 1.854646: #Gives all actuator positions < +-0.5
-                    if abs(slopes[kk]) < 1.3767:#Gives all actuator positions < +-1.
-                        slopes[kk] = 0
                     self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
 
                 #Input obtained slopes as the entries in the control matrix
@@ -659,7 +657,7 @@ class AdaptiveOpticsDevice(Device):
                 self._logger.info("Actuator %d is not in the pupil and therefore skipped" % (ac))
 
         self._logger.info("Computing Control Matrix")
-        self.controlMatrix = np.linalg.pinv(C_mat)
+        self.controlMatrix = np.linalg.pinv(C_mat, rcond=threshold)
         self._logger.info("Control Matrix computed")
         np.save("image_stack_cropped",image_stack_cropped)
         np.save("unwrapped_stack",unwrapped_stack)
