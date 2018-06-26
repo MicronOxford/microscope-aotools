@@ -74,14 +74,14 @@ class AdaptiveOpticsDevice(Device):
         #                            0,0,1,1,1,1,1,0,0,
         #                            0,0,1,1,1,0,0,
         #                            0,0,0,0,0])
-        self.pupil_ac = np.zeros(self.numActuators)
+        self.pupil_ac = np.ones(self.numActuators)
 
         try:
-            assert np.shape(self.pupil_ac) == self.numActuators
+            assert np.shape(self.pupil_ac)[0] == self.numActuators
         except:
             raise Exception("Length mismatch between pupil mask (%i) and "
                             "number of actuators (%i). Please provide a mask "
-                            "of the correct length" %(np.shape(self.pupil_ac),
+                            "of the correct length" %(np.shape(self.pupil_ac)[0],
                                                       self.numActuators))
 
 
@@ -420,7 +420,7 @@ class AdaptiveOpticsDevice(Device):
         return coef
 
     @Pyro4.expose
-    def createcontrolmatrix(self, imageStack, noZernikeModes, pokeSteps, pupil_ac = None):
+    def createcontrolmatrix(self, imageStack, noZernikeModes, pokeSteps, pupil_ac = None, threshold = 0.005):
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert self.roi is not None
@@ -462,7 +462,6 @@ class AdaptiveOpticsDevice(Device):
         all_zernikeModeAmp = np.ones((noImages,noZernikeModes))
         offsets = np.zeros((noZernikeModes,self.numActuators))
         P_tests = np.zeros((noZernikeModes,self.numActuators))
-        threshold = 0.005 #Threshold for pinv later
 
         edge_mask = np.sqrt((np.arange(-self.roi[2],self.roi[2])**2).reshape(
             (self.roi[2]*2,1)) + (np.arange(-self.roi[2],self.roi[2])**2)) < self.roi[2]-3
@@ -551,7 +550,7 @@ class AdaptiveOpticsDevice(Device):
         return rms_error
 
     @Pyro4.expose
-    def calibrate(self, numPokeSteps = 5):
+    def calibrate(self, numPokeSteps = 5, threshold = 0.005):
         self.camera.set_exposure_time(0.05)
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -600,7 +599,6 @@ class AdaptiveOpticsDevice(Device):
         all_zernikeModeAmp = np.ones((noImages,nzernike))
         offsets = np.zeros((nzernike,self.numActuators))
         P_tests = np.zeros((nzernike,self.numActuators))
-        threshold = 0.005 #Threshold for pinv later
 
         edge_mask = np.sqrt((np.arange(-self.roi[2],self.roi[2])**2).reshape(
             (self.roi[2]*2,1)) + (np.arange(-self.roi[2],self.roi[2])**2)) < self.roi[2]-3
@@ -755,13 +753,13 @@ class AdaptiveOpticsDevice(Device):
             except:
                 raise
 
-        flat_values = self.flatten_phase(iterations=10)
+        flat_values = self.flatten_phase(iterations=5)
 
         if modes_tba is None:
             modes_tba = self.numActuators
         assay = np.zeros((modes_tba,modes_tba))
         applied_z_modes = np.zeros(modes_tba)
-        for ii in range(3,modes_tba):
+        for ii in range(modes_tba):
             applied_z_modes[ii] = 1
             self.set_phase(applied_z_modes, offset=flat_values)
             self._logger.info("Appling Zernike mode %i/%i" %(ii,modes_tba))
