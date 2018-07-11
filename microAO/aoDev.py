@@ -47,7 +47,7 @@ class AdaptiveOpticsDevice(Device):
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
-        self.numActuators = self.mirror.get_n_actuators()
+        self.numActuators = self.mirror._n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
@@ -101,7 +101,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def send_patterns(self, patterns):
-        self.mirror.send_patterns(patterns)
+        self.mirror.queue_patterns(patterns)
 
     @Pyro4.expose
     def set_roi(self, y0, x0, radius):
@@ -576,8 +576,8 @@ class AdaptiveOpticsDevice(Device):
 
         nzernike = self.numActuators
 
-        poke_min = -0.65
-        poke_max = 0.65
+        poke_min = 0.175
+        poke_max = 0.825
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*(np.shape(np.where(self.pupil_ac == 1))[1])
 
