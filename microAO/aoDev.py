@@ -97,7 +97,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def send(self, values):
-        self.mirror.send(values)
+        self.mirror.apply_pattern(values)
 
     @Pyro4.expose
     def send_patterns(self, patterns):
