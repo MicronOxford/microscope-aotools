@@ -464,7 +464,7 @@ class AdaptiveOpticsDevice(Device):
                                                         offset = (-1.0 * previous_flat_actuators))
 
             flat_actuators[np.where(flat_actuators > 1)] = 1
-            flat_actuators[np.where(flat_actuators < -1)] = -1
+            flat_actuators[np.where(flat_actuators < 0)] = 0
 
             self.mirror.send(flat_actuators)
 
