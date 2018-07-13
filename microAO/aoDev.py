@@ -343,84 +343,36 @@ class AdaptiveOpticsDevice(Device):
         noImages = numPokeSteps*(np.shape(np.where(self.pupil_ac == 1))[1])
 
         image_stack_cropped = np.zeros((noImages,self.roi[2]*2,self.roi[2]*2))
-        unwrapped_stack = np.zeros((noImages,self.roi[2]*2,self.roi[2]*2))
-
-        slopes = np.zeros(nzernike)
-        intercepts = np.zeros(nzernike)
-        r_values = np.zeros(nzernike)
-        p_values = np.zeros(nzernike)
-        std_errs = np.zeros(nzernike)
 
         actuator_values = np.zeros((noImages,nzernike))
         for ii in range(nzernike):
             for jj in range(numPokeSteps):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
 
-        C_mat = np.zeros((nzernike,self.numActuators))
-        all_zernikeModeAmp = np.ones((noImages,nzernike))
-        offsets = np.zeros((nzernike,self.numActuators))
-        P_tests = np.zeros((nzernike,self.numActuators))
-
-        edge_mask = np.sqrt((np.arange(-self.roi[2],self.roi[2])**2).reshape(
-            (self.roi[2]*2,1)) + (np.arange(-self.roi[2],self.roi[2])**2)) < self.roi[2]-3
-
         for ac in range(self.numActuators):
-            if self.pupil_ac[ac] == 1:
-                pokeSteps_trimmed_list = []
-                zernikeModeAmp_list = []
-                for im in range(numPokeSteps):
-                    curr_calc = (ac * numPokeSteps) + im + 1
-                    self._logger.info("Frame %i/%i captured" %(curr_calc, noImages))
-                    try:
-                        self.mirror.send(actuator_values[(curr_calc-1),:])
-                    except:
-                        self._logger.info("Actuator values being sent:")
-                        self._logger.info(actuator_values[(curr_calc-1),:])
-                        self._logger.info("Shape of actuator vector:")
-                        self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
-                    poke_image = self.acquire()
-                    image_stack_cropped[curr_calc-1,:,:] = poke_image
-                    image_unwrap = self.phaseunwrap(poke_image)
-                    unwrapped_stack[curr_calc-1,:,:] = image_unwrap
-                    diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
-                    if np.any(diff_image > 2*np.pi):
-                        self._logger.info("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
-                        self._logger.info("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
-                    else:
-                        pokeSteps_trimmed_list.append(pokeSteps[im])
-                        self._logger.info("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
-                        curr_amps = self.getzernikemodes(image_unwrap, nzernike)
-                        thresh_amps = curr_amps * (abs(curr_amps)>0.5)
-                        zernikeModeAmp_list.append(thresh_amps)
-                        all_zernikeModeAmp[(curr_calc-1),:] = thresh_amps
-                        self._logger.info("Zernike modes %d/%d calculated" %(curr_calc, noImages))
-
-                pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
-                zernikeModeAmp = np.asarray(zernikeModeAmp_list)
-
-                #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
-                for kk in range(nzernike):
-                    self._logger.info("Fitting regression %d/%d..." % (kk+1, nzernike))
-                    try:
-                        slopes[kk],intercepts[kk],r_values[kk],p_values[kk],std_errs[kk] = \
-                            stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
-                    except Exception as e:
-                        self._logger.info(e)
-                    self._logger.info("Regression %d/%d fitted" % (kk + 1, nzernike))
-
-                #Input obtained slopes as the entries in the control matrix
-                C_mat[:,ac] = slopes[:]
-                offsets[:,ac] = intercepts[:]
-                P_tests[:,ac] = p_values[:]
-            else:
-                self._logger.info("Actuator %d is not in the pupil and therefore skipped" % (ac))
+            for im in range(numPokeSteps):
+                curr_calc = (ac * numPokeSteps) + im + 1
+                self._logger.info("Frame %i/%i captured" %(curr_calc, noImages))
+                try:
+                    self.mirror.send(actuator_values[(curr_calc-1),:])
+                except:
+                    self._logger.info("Actuator values being sent:")
+                    self._logger.info(actuator_values[(curr_calc-1),:])
+                    self._logger.info("Shape of actuator vector:")
+                    self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
+                poke_image = self.acquire()
+                image_stack_cropped[curr_calc-1,:,:] = poke_image
 
         self._logger.info("Computing Control Matrix")
-        self.controlMatrix = np.linalg.pinv(C_mat, rcond=threshold)
+        self.controlMatrix = aoAlg.create_control_matrix(imageStack = image_stack_cropped,
+                                                         numActuators = self.numActuators,
+                                                         noZernikeModes = 69,
+                                                         pokeSteps = pokeSteps,
+                                                         pupil_ac = self.pupil_ac,
+                                                         threshold = threshold)
         self._logger.info("Control Matrix computed")
         np.save("image_stack_cropped",image_stack_cropped)
-        np.save("unwrapped_stack",unwrapped_stack)
-        np.save("C_mat", C_mat)
+        np.save("control_matrix", self.controlMatrix)
 
         return self.controlMatrix
 
