@@ -26,7 +26,6 @@ import aotools
 import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
-import time
 
 import logging
 
