@@ -31,6 +31,7 @@ import time
 
 from microscope.devices import Device
 from microscope.devices import TriggerType
+from microscope.devices import TriggerMode
 
 class AdaptiveOpticsDevice(Device):
     """Class for the adaptive optics device
@@ -49,8 +50,9 @@ class AdaptiveOpticsDevice(Device):
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
-        self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
-        self.numActuators = self.mirror._n_actuators
+        self.mirror.set_trigger(ttype = TriggerType.RISING_EDGE, 
+                            tmode = TriggerMode.ONCE) #Set trigger type to rising edge
+        self.numActuators = self.mirror.get_n_actuators()
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
@@ -101,6 +103,10 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def send(self, values):
         self.mirror.apply_pattern(values)
+
+    @Pyro4.expose
+    def queue_patterns(self, patterns):
+        self.mirror.queue_patterns(patterns)
 
     @Pyro4.expose
     def set_roi(self, y0, x0, radius):
