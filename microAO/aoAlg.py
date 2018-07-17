@@ -29,7 +29,8 @@ from scipy.integrate import trapz
 
 import logging
 
-class AdaptiveOpticsFunctions:
+class AdaptiveOpticsFunctions():
+
     def __init__(self):
         logging.basicConfig(filename='example.log',level=logging.DEBUG)
 
@@ -95,7 +96,7 @@ class AdaptiveOpticsFunctions:
         mymass = np.sum(myim.ravel())
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
-    def fft_filter(self,image, region=None):
+    def fft_filter(self, image, region=None):
         #Convert image to array and float
         data = np.asarray(image)
 
@@ -213,6 +214,9 @@ class AdaptiveOpticsFunctions:
         return coef
 
     def create_control_matrix(self, imageStack, numActuators, noZernikeModes, pokeSteps, pupil_ac = None, threshold = 0.005):
+        if pupil_ac == None:
+            pupil_ac == np.ones(numActuators)
+
         slopes = np.zeros(noZernikeModes)
         intercepts = np.zeros(noZernikeModes)
         r_values = np.zeros(noZernikeModes)
