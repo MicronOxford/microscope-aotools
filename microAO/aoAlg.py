@@ -27,13 +27,9 @@ import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
 
-import logging
-
 class AdaptiveOpticsFunctions():
 
     def __init__(self):
-        logging.basicConfig(filename='example.log',level=logging.DEBUG)
-
         self.mask = None
         self.fft_filter = None
         self.controlMatrix = None
@@ -96,7 +92,7 @@ class AdaptiveOpticsFunctions():
         mymass = np.sum(myim.ravel())
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
-    def fft_filter(self, image, region=None):
+    def make_fft_filter(self, image, region=None):
         #Convert image to array and float
         data = np.asarray(image)
 
@@ -215,7 +211,7 @@ class AdaptiveOpticsFunctions():
 
     def create_control_matrix(self, imageStack, numActuators, noZernikeModes, pokeSteps, pupil_ac = None, threshold = 0.005):
         if pupil_ac == None:
-            pupil_ac == np.ones(numActuators)
+            pupil_ac = np.ones(numActuators)
 
         slopes = np.zeros(noZernikeModes)
         intercepts = np.zeros(noZernikeModes)
@@ -227,7 +223,7 @@ class AdaptiveOpticsFunctions():
         try:
             assert type(imageStack) is np.ndarray
         except:
-            logging.ERROR("Expected numpy.ndarray input data type, got %s" %type(imageStack))
+            print("Expected numpy.ndarray input data type, got %s" %type(imageStack))
         [noImages, x, y] = np.shape(imageStack)
         numPokeSteps = len(pokeSteps)
 
@@ -237,7 +233,7 @@ class AdaptiveOpticsFunctions():
         P_tests = np.zeros((noZernikeModes,numActuators))
 
         assert x == y
-        edge_mask = np.sqrt((np.arange(-x,x)**2).reshape((x*2,1)) + (np.arange(-x,x)**2)) < x-3
+        edge_mask = np.sqrt((np.arange(-x/2.0,x/2.0)).reshape((x,1)) + (np.arange(-x/2.0,x/2.0))) < x-3
 
         # Here the each image in the image stack (read in as np.array), centre and diameter should be passed to the unwrap
         # function to obtain the Zernike modes for each one. For the moment a set of random Zernike modes are generated.
@@ -248,43 +244,43 @@ class AdaptiveOpticsFunctions():
                 #Get the amplitudes of each Zernike mode for the poke range of one actuator
                 for jj in range(numPokeSteps):
                     curr_calc = (ii * numPokeSteps) + jj + 1
-                    logging.INFO("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
+                    print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
                     image_unwrap = self.phase_unwrap(imageStack[((ii * numPokeSteps) + jj),:,:])
                     diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
                     if np.any(diff_image > 2*np.pi):
-                        logging.INFO("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
-                        logging.INFO("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
+                        print("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
+                        print("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
                     else:
                         pokeSteps_trimmed_list.append(pokeSteps[jj])
-                        logging.INFO("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
+                        print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
                         curr_amps = self.get_zernike_modes(image_unwrap, noZernikeModes)
                         thresh_amps = curr_amps * (abs(curr_amps)>0.5)
                         zernikeModeAmp_list.append(thresh_amps)
                         all_zernikeModeAmp[(curr_calc-1),:] = thresh_amps
-                        logging.INFO("Zernike modes %d/%d calculated" %(curr_calc, noImages))
+                        print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
 
                 pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
                 zernikeModeAmp = np.asarray(zernikeModeAmp_list)
 
                 #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
                 for kk in range(noZernikeModes):
-                    logging.INFO("Fitting regression %d/%d..." % (kk+1, noZernikeModes))
+                    print("Fitting regression %d/%d..." % (kk+1, noZernikeModes))
                     try:
                         slopes[kk],intercepts[kk],r_values[kk],p_values[kk],std_errs[kk] = \
                             stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
                     except Exception as e:
-                        logging.ERROR(e)
-                    logging.INFO("Regression %d/%d fitted" % (kk + 1, noZernikeModes))
+                        print(e)
+                    print("Regression %d/%d fitted" % (kk + 1, noZernikeModes))
 
                 #Input obtained slopes as the entries in the control matrix
                 C_mat[:,ii] = slopes[:]
                 offsets[:,ii] = intercepts[:]
                 P_tests[:,ii] = p_values[:]
             else:
-                logging.INFO("Actuator %d is not in the pupil and therefore skipped" % (ii))
-        logging.INFO("Computing Control Matrix")
+                print("Actuator %d is not in the pupil and therefore skipped" % (ii))
+        print("Computing Control Matrix")
         self.controlMatrix = np.linalg.pinv(C_mat, rcond=threshold)
-        logging.INFO("Control Matrix computed")
+        print("Control Matrix computed")
         return self.controlMatrix
 
     def ac_pos_from_zernike(self, applied_z_modes, numActuators, offset = None):
