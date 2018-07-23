@@ -46,7 +46,7 @@ class AdaptiveOpticsDevice(Device):
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
         self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
-        self.numActuators = self.mirror._n_actuators
+        self.numActuators = self.mirror.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
