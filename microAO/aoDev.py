@@ -354,7 +354,7 @@ class AdaptiveOpticsDevice(Device):
                 curr_calc = (ac * numPokeSteps) + im + 1
                 self._logger.info("Frame %i/%i captured" %(curr_calc, noImages))
                 try:
-                    self.mirror.send(actuator_values[(curr_calc-1),:])
+                    self.mirror.apply_pattern(actuator_values[(curr_calc-1),:])
                 except:
                     self._logger.info("Actuator values being sent:")
                     self._logger.info(actuator_values[(curr_calc-1),:])
@@ -399,7 +399,7 @@ class AdaptiveOpticsDevice(Device):
                             "actuators do not match.")
 
         flat_actuators = np.zeros(numActuators)
-        self.mirror.send(flat_actuators)
+        self.mirror.apply_pattern(flat_actuators)
         previous_flat_actuators = flat_actuators
 
         z_amps = np.zeros(nzernike)
@@ -418,7 +418,7 @@ class AdaptiveOpticsDevice(Device):
             flat_actuators[np.where(flat_actuators > 1)] = 1
             flat_actuators[np.where(flat_actuators < 0)] = 0
 
-            self.mirror.send(flat_actuators)
+            self.mirror.apply_pattern(flat_actuators)
 
             true_flat = np.zeros(np.shape(interferogram_unwrap))
             rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
@@ -440,7 +440,7 @@ class AdaptiveOpticsDevice(Device):
     def set_phase(self, applied_z_modes, offset = None):
         actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes,
                                     self.numActuators, offset = offset)
-        self.mirror.send(actuator_pos)
+        self.mirror.apply_pattern(actuator_pos)
         return
 
     @Pyro4.expose
