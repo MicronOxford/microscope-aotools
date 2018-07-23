@@ -77,13 +77,15 @@ class TestAOFunctions(unittest.TestCase):
     self.true_fft_filter = self._construct_true_fft_filter()
 
     self.AO_func = AO.AdaptiveOpticsFunctions()
+    self.AO_mask = self.AO_func.make_mask(self.radius)
+    self.AO_fft_filter = self.AO_func.make_fft_filter(image = self.test_inter, region=None)
 
   def test_make_mask(self):
     test_mask = self.AO_func.make_mask(self.radius)
     np.testing.assert_array_equal(self.true_mask, test_mask)
 
   def test_fourier_filter(self):
-    test_fft_filter = self.AO_func.fft_filter(image = self.test_inter)
+    test_fft_filter = self.AO_func.make_fft_filter(image = self.test_inter, region=None)
 
     true_pos = np.asarray([self.true_y_freq, self.true_x_freq])
     max_pos = abs(np.asarray(np.where(test_fft_filter == np.max(test_fft_filter))) - 1024)
@@ -152,6 +154,7 @@ class TestAOFunctions(unittest.TestCase):
         test_stack[count,:,:] = self.test_inter * aberration_phase
         print "Test image %d\%d constructed" %(int(count+1),int(self.nzernike*10))
         count += 1
+        np.save("test_stack", test_stack)
 
     test_control_matrix = self.AO_func.create_control_matrix(imageStack=test_stack,
                                                              numActuators=self.planned_n_actuators,
