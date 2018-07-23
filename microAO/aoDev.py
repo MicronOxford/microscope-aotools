@@ -45,7 +45,7 @@ class AdaptiveOpticsDevice(Device):
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
-        self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
+        #self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
         self.numActuators = self.mirror.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
@@ -96,6 +96,9 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def send(self, values):
         self.mirror.apply_pattern(values)
+
+    def queue_patterns(self, patterns):
+        self.mirror.queue_patterns(patterns)
 
     @Pyro4.expose
     def set_roi(self, y0, x0, radius):
