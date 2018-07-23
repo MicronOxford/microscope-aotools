@@ -97,6 +97,7 @@ class AdaptiveOpticsDevice(Device):
     def send(self, values):
         self.mirror.apply_pattern(values)
 
+    @Pyro4.expose
     def queue_patterns(self, patterns):
         self.mirror.queue_patterns(patterns)
 
