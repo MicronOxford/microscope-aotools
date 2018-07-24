@@ -67,6 +67,7 @@ class TestAOFunctions(unittest.TestCase):
   def setUp(self):
     #Initialize necessary variables
     self.planned_n_actuators = 10
+    self.num_poke_steps = 5
     self.pattern = np.zeros((self.planned_n_actuators))
     self.radius = 1024
     self.nzernike = 10
@@ -138,19 +139,18 @@ class TestAOFunctions(unittest.TestCase):
     np.testing.assert_almost_equal(z_var_diff, 0, decimal=5)
 
   def test_createcontrolmatrix(self):
-    test_stack = np.zeros((self.nzernike*10,self.test_inter.shape[0],self.test_inter.shape[1]),
-                          dtype=np.complex_)
+    test_stack = np.zeros((self.nzernike*self.num_poke_steps,self.test_inter.shape[0],self.test_inter.shape[1]),
+                          dtype=complex)
     true_control_matrix = np.diag(np.ones(self.nzernike))
 
     count = 0
-    pokeSteps = np.linspace(0.05,0.95,10)
+    pokeSteps = np.linspace(0.05,0.95,self.num_poke_steps)
     for ii in range(self.nzernike):
       for jj in pokeSteps:
         zcoeffs_in = np.zeros(self.nzernike)
         zcoeffs_in[ii] = 1*jj
         aberration_angle = aotools.phaseFromZernikes(zcoeffs_in, (self.radius*2))
-        aberration_phase = ((1 + np.cos(aberration_angle) + (1j *
-                            np.sin(aberration_angle))) * self.true_mask)
+        aberration_phase = (1.0/2.0) * (np.cos(aberration_angle) + (1j * np.sin(aberration_angle)))
         test_stack[count,:,:] = self.test_inter * aberration_phase
         print "Test image %d\%d constructed" %(int(count+1),int(self.nzernike*10))
         count += 1
