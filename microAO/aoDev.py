@@ -90,6 +90,10 @@ class AdaptiveOpticsDevice(Device):
         pass
 
     @Pyro4.expose
+    def get_pattern_index(self):
+        return self.mirror.get_pattern_index()
+
+    @Pyro4.expose
     def get_n_actuators(self):
         return self.numActuators
 
