@@ -21,11 +21,9 @@
 import unittest
 import numpy as np
 import aotools
-import microAO
+import microAO.aoAlg as AO
 from scipy.signal import gaussian
 from skimage.restoration import unwrap_phase
-
-import microscope.testsuite.devices as dummies
 
 class TestAOFunctions(unittest.TestCase):
 
@@ -67,15 +65,11 @@ class TestAOFunctions(unittest.TestCase):
     return fft_filter
 
   def setUp(self):
-    self.planned_n_actuators = 10
-    self.pattern = np.zeros((self.planned_n_actuators))
-    self.dm = dummies.TestDeformableMirror(self.planned_n_actuators)
-    cam = dummies.TestCamera()
-    self.AO = microAO.AdaptiveOpticsDevice(camera=cam, mirror=self.dm)
-
     #Initialize necessary variables
+    self.planned_n_actuators = 10
+    self.num_poke_steps = 5
+    self.pattern = np.zeros((self.planned_n_actuators))
     self.radius = 1024
-    self.AO.set_roi(x0=self.radius, y0=self.radius, radius=self.radius)
     self.nzernike = 10
     self.true_x_freq = 350
     self.true_y_freq = 0
@@ -83,20 +77,16 @@ class TestAOFunctions(unittest.TestCase):
     self.test_inter = self._construct_interferogram()
     self.true_fft_filter = self._construct_true_fft_filter()
 
-  def test_applying_pattern(self):
-    ## This mainly checks the implementation of the dummy device.  It
-    ## is not that important but it is the basis to trust the other
-    ## tests wich will actually test the base class.
-    self.pattern[:] = 0.2
-    self.dm.apply_pattern(self.pattern)
-    np.testing.assert_array_equal(self.dm._current_pattern, self.pattern)
+    self.AO_func = AO.AdaptiveOpticsFunctions()
+    self.AO_mask = self.AO_func.make_mask(self.radius)
+    self.AO_fft_filter = self.AO_func.make_fft_filter(image = self.test_inter, region=None)
 
-  def test_makemask(self):
-    test_mask = self.AO.makemask(self.radius)
+  def test_make_mask(self):
+    test_mask = self.AO_func.make_mask(self.radius)
     np.testing.assert_array_equal(self.true_mask, test_mask)
 
   def test_fourier_filter(self):
-    test_fft_filter = self.AO.getfourierfilter(self.test_inter)
+    test_fft_filter = self.AO_func.make_fft_filter(image = self.test_inter, region=None)
 
     true_pos = np.asarray([self.true_y_freq, self.true_x_freq])
     max_pos = abs(np.asarray(np.where(test_fft_filter == np.max(test_fft_filter))) - 1024)
@@ -105,7 +95,7 @@ class TestAOFunctions(unittest.TestCase):
     np.testing.assert_almost_equal(test_pos[1], true_pos[1], decimal=0)
 
   def test_mgcentroid(self):
-    g0, g1 = np.asarray(self.AO.mgcentroid(self.true_fft_filter)) - self.radius
+    g0, g1 = np.asarray(self.AO_func.mgcentroid(self.true_fft_filter)) - self.radius
     np.testing.assert_almost_equal(abs(g0), self.true_x_freq, decimal=0)
     np.testing.assert_almost_equal(abs(g1), self.true_y_freq, decimal=0)
 
@@ -117,7 +107,7 @@ class TestAOFunctions(unittest.TestCase):
     test_phase = self.test_inter * aberration_phase
     aberration = unwrap_phase(np.arctan2(aberration_phase.imag,aberration_phase.real))
 
-    test_aberration = self.AO.phaseunwrap(image=test_phase)
+    test_aberration = self.AO_func.phase_unwrap(image=test_phase)
     #Test that the test aberrations isn't all 0s
     np.testing.assert_equal(np.not_equal(np.sum(test_aberration),0), True)
     ab_ratio_mean = np.mean(test_aberration[aberration != 0]/aberration[aberration != 0])
@@ -137,7 +127,7 @@ class TestAOFunctions(unittest.TestCase):
 
     zc_out = np.zeros((5,self.nzernike))
     for ii in range(5):
-      zc_out[ii, :] = self.AO.getzernikemodes(img, self.nzernike)
+      zc_out[ii, :] = self.AO_func.get_zernike_modes(img, self.nzernike)
       max_z_mode = np.where(zc_out[0,:] == np.max(zc_out[0,:]))[0][0]
       np.testing.assert_equal(max_z_mode, 5)
 
@@ -149,24 +139,29 @@ class TestAOFunctions(unittest.TestCase):
     np.testing.assert_almost_equal(z_var_diff, 0, decimal=5)
 
   def test_createcontrolmatrix(self):
-    test_stack = np.zeros((self.nzernike*10,self.test_inter.shape[0],self.test_inter.shape[1]),
-                          dtype=np.complex_)
+    test_stack = np.zeros((self.nzernike*self.num_poke_steps,self.test_inter.shape[0],self.test_inter.shape[1]),
+                          dtype=complex)
     true_control_matrix = np.diag(np.ones(self.nzernike))
 
     count = 0
-    pokeSteps = np.linspace(0.05,0.95,10)
+    pokeSteps = np.linspace(0.05,0.95,self.num_poke_steps)
     for ii in range(self.nzernike):
       for jj in pokeSteps:
         zcoeffs_in = np.zeros(self.nzernike)
         zcoeffs_in[ii] = 1*jj
         aberration_angle = aotools.phaseFromZernikes(zcoeffs_in, (self.radius*2))
-        aberration_phase = ((1 + np.cos(aberration_angle) + (1j *
-                            np.sin(aberration_angle))) * self.true_mask)
+        aberration_phase = (1.0/2.0) * (np.cos(aberration_angle) + (1j * np.sin(aberration_angle)))
         test_stack[count,:,:] = self.test_inter * aberration_phase
         print "Test image %d\%d constructed" %(int(count+1),int(self.nzernike*10))
         count += 1
+        np.save("test_stack", test_stack)
 
-    test_control_matrix = self.AO.createcontrolmatrix(test_stack, self.nzernike, pokeSteps)
+    test_control_matrix = self.AO_func.create_control_matrix(imageStack=test_stack,
+                                                             numActuators=self.planned_n_actuators,
+                                                             noZernikeModes=self.nzernike,
+                                                             pokeSteps = pokeSteps,
+                                                             pupil_ac = None,
+                                                             threshold = 0.005)
     max_ind = []
     for ii in range(self.nzernike):
       max_ind.append(np.where(test_control_matrix[:,ii] ==
@@ -177,11 +172,6 @@ class TestAOFunctions(unittest.TestCase):
     CM_var_diff = np.var(np.diag(CM_diff))
 
     np.testing.assert_almost_equal(CM_var_diff, 0, decimal=3)
-
-  def test_calibrate(self):
-    test_control_matrix = self.AO.calibrate(self.AO.acquire(),numPokeSteps=10)
-    test_control_matrix_shape = np.shape(test_control_matrix)
-    np.testing.assert_equal(test_control_matrix_shape,(10,self.nzernike))
 
   def test_flatten(self):
     pass
