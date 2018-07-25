@@ -23,7 +23,9 @@ import numpy as np
 import scipy.stats as stats
 import Pyro4
 import time
-import microAO.aoAlg as aoAlg
+from microAO.aoAlg import AdaptiveOpticsFunctions
+
+aoAlg = AdaptiveOpticsFunctions()
 
 from microscope.devices import Device
 from microscope.devices import TriggerType
@@ -221,7 +223,10 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        self.fft_filter = aoAlg.fft_filter(test_image, region=region)
+        try:
+            self.fft_filter = aoAlg.make_fft_filter(test_image, region=region)
+        except Exception as e:
+            self._logger.info(e)
         return self.fft_filter
 
     @Pyro4.expose
