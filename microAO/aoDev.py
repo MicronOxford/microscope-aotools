@@ -46,12 +46,7 @@ class AdaptiveOpticsDevice(Device):
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
-<<<<<<< HEAD
-        self.mirror.set_trigger(ttype = TriggerType.RISING_EDGE, 
-                            tmode = TriggerMode.ONCE) #Set trigger type to rising edge
-=======
         #self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
->>>>>>> cdf33aee3c47648dcb817d3f8f491c827739c986
         self.numActuators = self.mirror.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
@@ -120,7 +115,7 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("ROI assignment failed")
 
         #Mask will need to be reconstructed as radius has changed
-        self.mask = aoAlg.makemask(radius)
+        self.mask = aoAlg.make_mask(radius)
         try:
             assert self.mask is not None
         except:
