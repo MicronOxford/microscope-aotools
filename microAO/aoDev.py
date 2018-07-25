@@ -160,8 +160,8 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("No control matrix calculated. Please calibrate the mirror")
 
     @Pyro4.expose
-    def makemask(self, radius):
-        self.mask = aoAlg.makemask(radius)
+    def make_mask(self, radius):
+        self.mask = aoAlg.make_mask(radius)
         return self.mask
 
     @Pyro4.expose
@@ -206,7 +206,7 @@ class AdaptiveOpticsDevice(Device):
             if self.mask is not None:
                 data = data_cropped * self.mask
             else:
-                self.mask = self.makemask(self.roi[2])
+                self.mask = self.make_mask(self.roi[2])
                 data = data_cropped 
         else:
             data = data_raw
@@ -239,7 +239,7 @@ class AdaptiveOpticsDevice(Device):
         if self.mask is not None:
             pass
         else:
-            self.mask = self.makemask(int(np.round(np.shape(image)[0]/2)))
+            self.mask = self.make_mask(int(np.round(np.shape(image)[0]/2)))
 
         if self.fft_filter is not None:
             pass
@@ -267,7 +267,7 @@ class AdaptiveOpticsDevice(Device):
         if self.mask is not None:
             pass
         else:
-            self.mask = self.makemask(int(np.round(np.shape(imageStack)[1]/2)))
+            self.mask = self.make_mask(int(np.round(np.shape(imageStack)[1]/2)))
 
         if self.fft_filter is not None:
             pass
@@ -336,7 +336,7 @@ class AdaptiveOpticsDevice(Device):
             pass
         else:
             self._logger.info("Constructing mask")
-            self.mask = self.makemask(self.roi[2])
+            self.mask = self.make_mask(self.roi[2])
             
         if self.fft_filter is not None:
             pass
