@@ -36,6 +36,17 @@ class AdaptiveOpticsDevice(Device):
 
     This class requires a mirror and a camera. Everything else is generated
     on or after __init__"""
+    
+    _CockpitTriggerType_to_TriggerType = {
+    "SOFTWARE" : TriggerType.SOFTWARE,
+    "RISING_EDGE" : TriggerType.RISING_EDGE,
+    "FALLING_EDGE" : TriggerType.FALLING_EDGE,
+    }
+
+    _CockpitTriggerModes_to_TriggerModes = {
+    "ONCE" : TriggerMode.ONCE,
+    "START" : TriggerMode.START,
+    }
 
     def __init__(self, camera_uri, mirror_uri, **kwargs):
         # Init will fail if devices it depends on aren't already running, but
@@ -93,6 +104,12 @@ class AdaptiveOpticsDevice(Device):
         pass
 
     @Pyro4.expose
+    def set_trigger(self, cp_ttype, cp_tmode):
+        ttype = self._CockpitTriggerType_to_TriggerType[cp_ttype]
+        tmode = self._CockpitTriggerModes_to_TriggerModes[cp_tmode]
+        self.mirror.set_trigger(ttype, tmode)
+
+    @Pyro4.expose
     def get_pattern_index(self):
         return self.mirror.get_pattern_index()
 
@@ -102,10 +119,12 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def send(self, values):
+        self._logger.info("Sending patterns to DM")
         self.mirror.apply_pattern(values)
 
     @Pyro4.expose
     def queue_patterns(self, patterns):
+        self._logger.info("Queuing patterns on DM")
         self.mirror.queue_patterns(patterns)
 
     @Pyro4.expose
