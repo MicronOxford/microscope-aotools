@@ -20,7 +20,6 @@
 
 #Import required packs
 import numpy as np
-import scipy.stats as stats
 import Pyro4
 import time
 from microAO.aoAlg import AdaptiveOpticsFunctions
@@ -69,6 +68,8 @@ class AdaptiveOpticsDevice(Device):
         self.fft_filter = None
         #Control Matrix
         self.controlMatrix = None
+        #System correction
+        self.flat_actuators_sys = np.zeros(self.numActuators)
 
         ##We don't use all the actuators. Create a mask for the actuators outside
         ##the pupil so we can selectively calibrate them. 0 denotes actuators at
@@ -407,7 +408,9 @@ class AdaptiveOpticsDevice(Device):
         np.save("image_stack_cropped",image_stack_cropped)
         np.save("control_matrix", self.controlMatrix)
 
-        return self.controlMatrix
+        self.flat_actuators_sys = self.flatten_phase(iterations=25)
+
+        return self.controlMatrix, self.flat_actuators_sys
 
     @Pyro4.expose
     def flatten_phase(self, iterations = 1):
@@ -465,6 +468,8 @@ class AdaptiveOpticsDevice(Device):
             #    assert np.all(abs(flat_actuators)<1)
             #except:
             #    raise Exception("All actuators at max stroke length")
+
+
 
 
         return flat_actuators
