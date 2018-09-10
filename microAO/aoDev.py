@@ -397,6 +397,8 @@ class AdaptiveOpticsDevice(Device):
                 poke_image = self.acquire()
                 image_stack_cropped[curr_calc-1,:,:] = poke_image
 
+        self.mirror.apply_pattern(np.zeros(self.numActuators)+0.5)
+
         self._logger.info("Computing Control Matrix")
         self.controlMatrix = aoAlg.create_control_matrix(imageStack = image_stack_cropped,
                                                          numActuators = self.numActuators,
