@@ -210,7 +210,7 @@ class AdaptiveOpticsFunctions():
         return coef
 
     def create_control_matrix(self, imageStack, numActuators, noZernikeModes, pokeSteps, pupil_ac = None, threshold = 0.005):
-        if pupil_ac == None:
+        if np.any(pupil_ac) == None:
             pupil_ac = np.ones(numActuators)
 
         slopes = np.zeros(noZernikeModes)
