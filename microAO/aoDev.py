@@ -300,7 +300,7 @@ class AdaptiveOpticsDevice(Device):
             self.fft_filter = self.set_fourierfilter(imageStack[0,:,:])
 
         if np.any(pupil_ac == None):
-            pupil_ac = np.ones(numActuators)
+            pupil_ac = np.ones(self.numActuators)
         else:
             pass
 
