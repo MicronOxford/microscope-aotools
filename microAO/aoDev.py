@@ -165,6 +165,7 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def set_controlMatrix(self,controlMatrix):
         self.controlMatrix = controlMatrix
+        aoAlg.controlMatrix = controlMatrix
         return
 
     @Pyro4.expose
@@ -180,6 +181,10 @@ class AdaptiveOpticsDevice(Device):
             return self.controlMatrix
         else:
             raise Exception("No control matrix calculated. Please calibrate the mirror")
+
+    @Pyro4.expose
+    def reset(self):
+        self.send(np.zeros(self.numActuators) + 0.5)
 
     @Pyro4.expose
     def make_mask(self, radius):
@@ -480,6 +485,7 @@ class AdaptiveOpticsDevice(Device):
     def set_phase(self, applied_z_modes, offset = None):
         actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes,
                                     self.numActuators, offset = offset)
+        self._logger.info(actuator_pos)
         self.mirror.apply_pattern(actuator_pos)
         return
 
@@ -500,7 +506,7 @@ class AdaptiveOpticsDevice(Device):
         if modes_tba is None:
             modes_tba = self.numActuators
         assay = np.zeros((modes_tba,modes_tba))
-        applied_z_modes = np.zeros(modes_tba)
+        applied_z_modes = np.zeros(modes_tba) + 0.5
         for ii in range(modes_tba):
             applied_z_modes[ii] = 1
             self.set_phase(applied_z_modes, offset=flat_values)
@@ -508,6 +514,6 @@ class AdaptiveOpticsDevice(Device):
             acquired_z_modes = self.measure_zernike(modes_tba)
             self._logger.info("Measured phase")
             assay[:,ii] = acquired_z_modes
-            applied_z_modes[ii] = 0
-        self.mirror.reset()
+            applied_z_modes[ii] = 0.5
+        self.reset()
         return assay
