@@ -304,4 +304,7 @@ class AdaptiveOpticsFunctions():
             actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes) + offset
         else:
             actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes)
+
+        actuator_pos[actuator_pos > 1] = 1
+        actuator_pos[actuator_pos < 0] = 0
         return actuator_pos
