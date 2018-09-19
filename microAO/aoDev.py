@@ -121,11 +121,23 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def send(self, values):
         self._logger.info("Sending patterns to DM")
+
+        #Need to normalise patterns because general DM class expects 0-1 values
+        values = (values+1.0)/2.0
+        values[values > 1.0] = 1.0
+        values[values < 0.0] = 0.0
+
         self.mirror.apply_pattern(values)
 
     @Pyro4.expose
     def queue_patterns(self, patterns):
         self._logger.info("Queuing patterns on DM")
+
+        # Need to normalise patterns because general DM class expects 0-1 values
+        patterns = (patterns + 1.0) / 2.0
+        patterns[patterns > 1.0] = 1.0
+        patterns[patterns < 0.0] = 0.0
+
         self.mirror.queue_patterns(patterns)
 
     @Pyro4.expose
@@ -184,7 +196,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def reset(self):
-        self.send(np.zeros(self.numActuators) + 0.5)
+        self.send(np.zeros(self.numActuators))
 
     @Pyro4.expose
     def make_mask(self, radius):
@@ -376,8 +388,8 @@ class AdaptiveOpticsDevice(Device):
 
         nzernike = self.numActuators
 
-        poke_min = 0.175
-        poke_max = 0.825
+        poke_min = -0.65
+        poke_max = 0.65
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*(np.shape(np.where(self.pupil_ac == 1))[1])
 
@@ -393,7 +405,7 @@ class AdaptiveOpticsDevice(Device):
                 curr_calc = (ac * numPokeSteps) + im + 1
                 self._logger.info("Frame %i/%i captured" %(curr_calc, noImages))
                 try:
-                    self.mirror.apply_pattern(actuator_values[(curr_calc-1),:])
+                    self.send(actuator_values[(curr_calc-1),:])
                 except:
                     self._logger.info("Actuator values being sent:")
                     self._logger.info(actuator_values[(curr_calc-1),:])
@@ -402,7 +414,7 @@ class AdaptiveOpticsDevice(Device):
                 poke_image = self.acquire()
                 image_stack_cropped[curr_calc-1,:,:] = poke_image
 
-        self.mirror.apply_pattern(np.zeros(self.numActuators)+0.5)
+        self.send(np.zeros(self.numActuators))
 
         self._logger.info("Computing Control Matrix")
         self.controlMatrix = aoAlg.create_control_matrix(imageStack = image_stack_cropped,
@@ -415,7 +427,7 @@ class AdaptiveOpticsDevice(Device):
         np.save("image_stack_cropped",image_stack_cropped)
         np.save("control_matrix", self.controlMatrix)
 
-        self.flat_actuators_sys = self.flatten_phase(iterations=25)
+        self.flat_actuators_sys = self.flatten_phase(iterations=5)
 
         return self.controlMatrix, self.flat_actuators_sys
 
@@ -442,7 +454,7 @@ class AdaptiveOpticsDevice(Device):
                             "actuators do not match.")
 
         flat_actuators = np.zeros(numActuators)
-        self.mirror.apply_pattern(flat_actuators)
+        self.send(flat_actuators)
         previous_flat_actuators = flat_actuators
 
         z_amps = np.zeros(nzernike)
@@ -458,10 +470,10 @@ class AdaptiveOpticsDevice(Device):
             flat_actuators[:] = -1.0 * aoAlg.ac_pos_from_zernike(z_amps, self.numActuators,
                                                         offset = (-1.0 * previous_flat_actuators))
 
-            flat_actuators[np.where(flat_actuators > 1)] = 1
-            flat_actuators[np.where(flat_actuators < 0)] = 0
+            flat_actuators[flat_actuators > 1] = 1
+            flat_actuators[flat_actuators < -1] = -1
 
-            self.mirror.apply_pattern(flat_actuators)
+            self.send(flat_actuators)
 
             true_flat = np.zeros(np.shape(interferogram_unwrap))
             rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
@@ -486,7 +498,7 @@ class AdaptiveOpticsDevice(Device):
         actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes,
                                     self.numActuators, offset = offset)
         self._logger.info(actuator_pos)
-        self.mirror.apply_pattern(actuator_pos)
+        self.send(actuator_pos)
         return
 
     @Pyro4.expose
@@ -506,7 +518,7 @@ class AdaptiveOpticsDevice(Device):
         if modes_tba is None:
             modes_tba = self.numActuators
         assay = np.zeros((modes_tba,modes_tba))
-        applied_z_modes = np.zeros(modes_tba) + 0.5
+        applied_z_modes = np.zeros(modes_tba)
         for ii in range(modes_tba):
             applied_z_modes[ii] = 1
             self.set_phase(applied_z_modes, offset=flat_values)
@@ -514,6 +526,6 @@ class AdaptiveOpticsDevice(Device):
             acquired_z_modes = self.measure_zernike(modes_tba)
             self._logger.info("Measured phase")
             assay[:,ii] = acquired_z_modes
-            applied_z_modes[ii] = 0.5
+            applied_z_modes[ii] = 0.0
         self.reset()
         return assay
