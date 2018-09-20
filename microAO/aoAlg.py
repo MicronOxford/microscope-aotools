@@ -210,7 +210,7 @@ class AdaptiveOpticsFunctions():
         return coef
 
     def create_control_matrix(self, imageStack, numActuators, noZernikeModes, pokeSteps, pupil_ac = None, threshold = 0.005):
-        if np.any(pupil_ac == None):
+        if np.any(pupil_ac) == None:
             pupil_ac = np.ones(numActuators)
 
         slopes = np.zeros(noZernikeModes)
@@ -290,7 +290,7 @@ class AdaptiveOpticsFunctions():
         print("Control Matrix computed")
         return self.controlMatrix
 
-    def ac_pos_from_zernike(self, applied_z_modes, numActuators, offset = None):
+    def ac_pos_from_zernike(self, applied_z_modes, numActuators):
         if int(np.shape(applied_z_modes)[0]) < int(np.shape(self.controlMatrix)[1]):
             pad_length = int(np.shape(applied_z_modes)[0]) - int(np.shape(self.controlMatrix)[1])
             np.pad(applied_z_modes, (0,pad_length), 'constant')
@@ -299,10 +299,11 @@ class AdaptiveOpticsFunctions():
         else:
             pass
 
-        actuator_pos = np.zeros(numActuators)
-        if offset is not None:
-            actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes) + offset
-        else:
-            actuator_pos[:] = np.dot(self.controlMatrix, applied_z_modes)
+        actuator_pos = np.dot(self.controlMatrix, applied_z_modes)
+
+        try:
+            assert len(actuator_pos) == numActuators
+        except:
+            raise Exception
 
         return actuator_pos
