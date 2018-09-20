@@ -122,6 +122,9 @@ class AdaptiveOpticsDevice(Device):
     def send(self, values):
         self._logger.info("Sending patterns to DM")
 
+        self._logger.info('Actuator positions:')
+        self._logger.info(values)
+
         #Need to normalise patterns because general DM class expects 0-1 values
         values = (values+1.0)/2.0
         values[values > 1.0] = 1.0
@@ -255,8 +258,7 @@ class AdaptiveOpticsDevice(Device):
     def set_fourierfilter(self, test_image, region=None):
         #Ensure an ROI is defined so a masked image is obtained
         try:
-
-            assert self.roi is not None
+            assert np.any(self.roi) is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
@@ -270,7 +272,7 @@ class AdaptiveOpticsDevice(Device):
     def phaseunwrap(self, image = None):
         #Ensure an ROI is defined so a masked image is obtained
         try:
-            assert self.roi is not None
+            assert np.any(self.roi) is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
@@ -278,15 +280,18 @@ class AdaptiveOpticsDevice(Device):
             image = self.acquire()
 
         #Ensure the filters has been constructed
-        if self.mask is not None:
-            pass
+        if np.any(self.mask) is None:
+            self.mask = self.make_mask(int(np.round(np.shape(image)[0] / 2)))
         else:
-            self.mask = self.make_mask(int(np.round(np.shape(image)[0]/2)))
+            pass
 
-        if self.fft_filter is not None:
-            pass
+        if np.any(self.fft_filter) is None:
+            try:
+                self.fft_filter = self.set_fourierfilter(image)
+            except:
+                raise
         else:
-            self.fft_filter = self.set_fourierfilter(image)
+            pass
 
         self.out = aoAlg.phase_unwrap(image)
         return self.out
@@ -301,20 +306,20 @@ class AdaptiveOpticsDevice(Device):
     def createcontrolmatrix(self, imageStack, noZernikeModes, pokeSteps, pupil_ac = None, threshold = 0.005):
         #Ensure an ROI is defined so a masked image is obtained
         try:
-            assert self.roi is not None
+            assert np.any(self.roi) is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
         #Ensure the filters has been constructed
-        if self.mask is not None:
-            pass
+        if np.any(self.mask) is None:
+            self.mask = self.make_mask(int(np.round(np.shape(imageStack)[1] / 2)))
         else:
-            self.mask = self.make_mask(int(np.round(np.shape(imageStack)[1]/2)))
+            pass
 
-        if self.fft_filter is not None:
-            pass
+        if np.any(self.fft_filter) is None:
+            self.fft_filter = self.set_fourierfilter(imageStack[0, :, :])
         else:
-            self.fft_filter = self.set_fourierfilter(imageStack[0,:,:])
+            pass
 
         if np.any(pupil_ac == None):
             pupil_ac = np.ones(self.numActuators)
@@ -330,19 +335,20 @@ class AdaptiveOpticsDevice(Device):
     def acquire_unwrapped_phase(self):
         #Ensure an ROI is defined so a masked image is obtained
         try:
-            assert self.roi is not None
+            assert np.any(self.roi) is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        #Ensure a Fourier filter has been constructed
-        if self.fft_filter is not None:
-            pass
-        else:
+        # Ensure a Fourier filter has been constructed
+        if np.any(self.fft_filter) is None:
             try:
                 test_image = self.acquire()
                 self.fft_filter = self.set_fourierfilter(test_image)
             except:
                 raise
+        else:
+            pass
+
         interferogram = self.acquire()
         interferogram_unwrap = self.phaseunwrap(interferogram)
         self._logger.info("Phase unwrapped ")
@@ -366,7 +372,7 @@ class AdaptiveOpticsDevice(Device):
         self.camera.set_exposure_time(0.05)
         #Ensure an ROI is defined so a masked image is obtained
         try:
-            assert self.roi is not None
+            assert np.any(self.roi) is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
@@ -374,17 +380,17 @@ class AdaptiveOpticsDevice(Device):
         (width, height) = np.shape(test_image)
         
         #Ensure the filters has been constructed
-        if self.mask is not None:
-            pass
-        else:
+        if np.any(self.mask) is None:
             self._logger.info("Constructing mask")
             self.mask = self.make_mask(self.roi[2])
-            
-        if self.fft_filter is not None:
-            pass
         else:
+            pass
+            
+        if np.any(self.fft_filter) is None:
             self._logger.info("Constructing Fourier filter")
-            self.fft_filter = self.set_fourierfilter(test_image[:,:])
+            self.fft_filter = self.set_fourierfilter(test_image[:, :])
+        else:
+            pass
 
         nzernike = self.numActuators
 
@@ -435,16 +441,19 @@ class AdaptiveOpticsDevice(Device):
     def flatten_phase(self, iterations = 1):
         #Ensure an ROI is defined so a masked image is obtained
         try:
-            assert self.roi is not None
+            assert np.any(self.roi) is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        #Ensure a Fourier filter has been constructed
-        if self.fft_filter is not None:
-            pass
+        # Ensure a Fourier filter has been constructed
+        if np.any(self.fft_filter) is None:
+            try:
+                test_image = self.acquire()
+                self.fft_filter = self.set_fourierfilter(test_image)
+            except:
+                raise
         else:
-            test_image = self.acquire()
-            self.fft_filter = self.set_fourierfilter(test_image)
+            pass
 
         numActuators, nzernike = np.shape(self.controlMatrix)
         try:
@@ -467,8 +476,8 @@ class AdaptiveOpticsDevice(Device):
 
             interferogram_unwrap = self.phaseunwrap(interferogram)
             z_amps[:] = self.getzernikemodes(interferogram_unwrap, nzernike)
-            flat_actuators[:] = -1.0 * aoAlg.ac_pos_from_zernike(z_amps, self.numActuators,
-                                                        offset = (-1.0 * previous_flat_actuators))
+            flat_actuators[:] = -1.0 * aoAlg.ac_pos_from_zernike(z_amps, self.numActuators)
+            flat_actuators += previous_flat_actuators
 
             flat_actuators[flat_actuators > 1] = 1
             flat_actuators[flat_actuators < -1] = -1
@@ -488,15 +497,15 @@ class AdaptiveOpticsDevice(Device):
             #except:
             #    raise Exception("All actuators at max stroke length")
 
-
-
-
         return flat_actuators
 
     @Pyro4.expose
     def set_phase(self, applied_z_modes, offset = None):
-        actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes,
-                                    self.numActuators, offset = offset)
+        actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes, self.numActuators)
+        if np.any(offset) is None:
+            pass
+        else:
+            actuator_pos += offset
         self._logger.info(actuator_pos)
         self.send(actuator_pos)
         return
@@ -504,28 +513,29 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def assess_character(self, modes_tba = None):
         #Ensure a Fourier filter has been constructed
-        if self.fft_filter is not None:
-            pass
-        else:
+        if np.any(self.fft_filter) is None:
             try:
                 test_image = self.acquire()
                 self.fft_filter = self.set_fourierfilter(test_image)
             except:
                 raise
+        else:
+            pass
 
-        flat_values = self.flatten_phase(iterations=5)
+        #flat_values = self.flatten_phase(iterations=5)
 
         if modes_tba is None:
             modes_tba = self.numActuators
         assay = np.zeros((modes_tba,modes_tba))
         applied_z_modes = np.zeros(modes_tba)
         for ii in range(modes_tba):
+            z_modes_ac0 = self.measure_zernike(modes_tba)
             applied_z_modes[ii] = 1
-            self.set_phase(applied_z_modes, offset=flat_values)
+            self.set_phase(applied_z_modes)#, offset=flat_values)
             self._logger.info("Appling Zernike mode %i/%i" %(ii,modes_tba))
             acquired_z_modes = self.measure_zernike(modes_tba)
             self._logger.info("Measured phase")
-            assay[:,ii] = acquired_z_modes
+            assay[:,ii] = acquired_z_modes - z_modes_ac0
             applied_z_modes[ii] = 0.0
         self.reset()
         return assay
