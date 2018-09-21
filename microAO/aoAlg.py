@@ -137,7 +137,8 @@ class AdaptiveOpticsFunctions():
             maxpoint[1] = maxpoint[1] - 25 + int(CoM[0,0])
 
         self.fft_filter = np.zeros(np.shape(fftarray))
-        mask_di = min(int(data.shape[0]*(5.0/16.0)), (maxpoint[0]-maxpoint[0]%2), (maxpoint[1]-maxpoint[1]%2))
+        #mask_di = min(int(data.shape[0]*(3.0/8.0)), (maxpoint[0]-maxpoint[0]%2), (maxpoint[1]-maxpoint[1]%2))
+        mask_di = np.min(maxpoint)-1
 
         x = np.sin(np.linspace(0, np.pi, mask_di))**2
         fourier_mask = np.outer(x,x.T)
@@ -233,7 +234,7 @@ class AdaptiveOpticsFunctions():
         P_tests = np.zeros((noZernikeModes,numActuators))
 
         assert x == y
-        edge_mask = np.sqrt((np.arange(-x/2.0,x/2.0)).reshape((x,1)) + (np.arange(-x/2.0,x/2.0))) < x-3
+        edge_mask = np.sqrt((np.arange(-x/2.0,x/2.0)**2).reshape((x,1)) + (np.arange(-x/2.0,x/2.0)**2)) < ((x/2.0)-3)
 
         # Here the each image in the image stack (read in as np.array), centre and diameter should be passed to the unwrap
         # function to obtain the Zernike modes for each one. For the moment a set of random Zernike modes are generated.
@@ -247,24 +248,24 @@ class AdaptiveOpticsFunctions():
                     print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
                     image_unwrap = self.phase_unwrap(imageStack[((ii * numPokeSteps) + jj),:,:])
                     diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
-                    #if np.any(diff_image > 2*np.pi):
-                    #    print("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
-                    #    print("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
-                    #else:
-                    #    pokeSteps_trimmed_list.append(pokeSteps[jj])
-                    #    print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
-                    #    curr_amps = self.get_zernike_modes(image_unwrap, noZernikeModes)
-                    #    thresh_amps = curr_amps * (abs(curr_amps)>0.5)
-                    #    zernikeModeAmp_list.append(thresh_amps)
-                    #    all_zernikeModeAmp[(curr_calc-1),:] = thresh_amps
-                    #    print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
-                    pokeSteps_trimmed_list.append(pokeSteps[jj])
-                    print("Calculating Zernike modes %d/%d..." % (curr_calc, noImages))
-                    curr_amps = self.get_zernike_modes(image_unwrap, noZernikeModes)
-                    thresh_amps = curr_amps * (abs(curr_amps) > 0.5)
-                    zernikeModeAmp_list.append(thresh_amps)
-                    all_zernikeModeAmp[(curr_calc - 1), :] = thresh_amps
-                    print("Zernike modes %d/%d calculated" % (curr_calc, noImages))
+                    if np.any(diff_image > 2*np.pi):
+                        print("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
+                        print("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
+                    else:
+                        pokeSteps_trimmed_list.append(pokeSteps[jj])
+                        print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
+                        curr_amps = self.get_zernike_modes(image_unwrap, noZernikeModes)
+                        thresh_amps = curr_amps * (abs(curr_amps)>0.5)
+                        zernikeModeAmp_list.append(thresh_amps)
+                        all_zernikeModeAmp[(curr_calc-1),:] = thresh_amps
+                        print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
+                    #pokeSteps_trimmed_list.append(pokeSteps[jj])
+                    #print("Calculating Zernike modes %d/%d..." % (curr_calc, noImages))
+                    #curr_amps = self.get_zernike_modes(image_unwrap, noZernikeModes)
+                    #thresh_amps = curr_amps * (abs(curr_amps) > 0.5)
+                    #zernikeModeAmp_list.append(thresh_amps)
+                    #all_zernikeModeAmp[(curr_calc - 1), :] = thresh_amps
+                    #print("Zernike modes %d/%d calculated" % (curr_calc, noImages))
 
                 pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
                 zernikeModeAmp = np.asarray(zernikeModeAmp_list)
