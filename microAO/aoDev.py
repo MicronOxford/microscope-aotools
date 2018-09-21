@@ -529,6 +529,7 @@ class AdaptiveOpticsDevice(Device):
         assay = np.zeros((modes_tba,modes_tba))
         applied_z_modes = np.zeros(modes_tba)
         for ii in range(modes_tba):
+            self.reset()
             z_modes_ac0 = self.measure_zernike(modes_tba)
             applied_z_modes[ii] = 1
             self.set_phase(applied_z_modes)#, offset=flat_values)
