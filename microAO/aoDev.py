@@ -423,12 +423,15 @@ class AdaptiveOpticsDevice(Device):
         self._logger.info("Control Matrix computed")
         np.save("control_matrix", self.controlMatrix)
 
-        self.flat_actuators_sys = self.flatten_phase(iterations=25)
+        #Obtain actuator positions to correct for system aberrations
+        #Ignore piston, tip, tilt and defocus
+        z_modes_ignore = np.asarray(range(self.numActuators) > 3)
+        self.flat_actuators_sys = self.flatten_phase(iterations=25, z_modes_ignore=z_modes_ignore)
 
         return self.controlMatrix, self.flat_actuators_sys
 
     @Pyro4.expose
-    def flatten_phase(self, iterations = 1):
+    def flatten_phase(self, iterations = 1, z_modes_ignore = None):
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
@@ -445,12 +448,20 @@ class AdaptiveOpticsDevice(Device):
         else:
             pass
 
+        #Check dimensions match
         numActuators, nzernike = np.shape(self.controlMatrix)
         try:
             assert numActuators == self.numActuators
         except:
             raise Exception("Control Matrix dimension 0 axis and number of "
                             "actuators do not match.")
+
+        #Set which modes to ignore while flattening
+        if np.any(z_modes_ignore) is None:
+            #By default, ignore piston, tip and tilt
+            z_modes_ignore = np.asarray(range(self.numActuators) > 2)
+        else:
+            pass
 
         best_flat_actuators = np.zeros(numActuators) + 0.5
         self.send(best_flat_actuators)
@@ -470,7 +481,7 @@ class AdaptiveOpticsDevice(Device):
             z_amps = self.getzernikemodes(interferogram_unwrap, nzernike)
 
             #We ignore piston, tip and tilt
-            z_amps[0:3] = 0
+            z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase(z_amps, offset=best_flat_actuators)
 
             time.sleep(1)
