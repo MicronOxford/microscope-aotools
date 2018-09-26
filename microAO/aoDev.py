@@ -122,11 +122,7 @@ class AdaptiveOpticsDevice(Device):
     def send(self, values):
         self._logger.info("Sending patterns to DM")
 
-        self._logger.info('Actuator positions:')
-        self._logger.info(values)
-
         #Need to normalise patterns because general DM class expects 0-1 values
-        values = (values+1.0)/2.0
         values[values > 1.0] = 1.0
         values[values < 0.0] = 0.0
 
@@ -137,7 +133,6 @@ class AdaptiveOpticsDevice(Device):
         self._logger.info("Queuing patterns on DM")
 
         # Need to normalise patterns because general DM class expects 0-1 values
-        patterns = (patterns + 1.0) / 2.0
         patterns[patterns > 1.0] = 1.0
         patterns[patterns < 0.0] = 0.0
 
@@ -165,17 +160,25 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def get_roi(self):
-        if self.roi is not None:
-            return self.roi
-        else:
+        if np.any(self.roi) is None:
             raise Exception("No region of interest selected. Please select a region of interest")
+        else:
+            return self.roi
 
     @Pyro4.expose
     def get_fourierfilter(self):
-        if self.fft_filter is not None:
-            return self.fft_filter
-        else:
+        if np.any(self.fft_filter) is None:
             raise Exception("No Fourier filter created. Please create one.")
+        else:
+            return self.fft_filter
+
+    @Pyro4.expose
+    def get_controlMatrix(self):
+        if np.any(self.controlMatrix) is None:
+            raise Exception("No control matrix calculated. Please calibrate the mirror")
+        else:
+            return self.controlMatrix
+
 
     @Pyro4.expose
     def set_controlMatrix(self,controlMatrix):
@@ -184,22 +187,8 @@ class AdaptiveOpticsDevice(Device):
         return
 
     @Pyro4.expose
-    def get_roi(self):
-        if self.roi is not None:
-            return self.roi
-        else:
-            raise Exception("No control matrix calculated. Please calibrate the mirror")
-
-    @Pyro4.expose
-    def get_controlMatrix(self):
-        if self.controlMatrix is not None:
-            return self.controlMatrix
-        else:
-            raise Exception("No control matrix calculated. Please calibrate the mirror")
-
-    @Pyro4.expose
     def reset(self):
-        self.send(np.zeros(self.numActuators))
+        self.send(np.zeros(self.numActuators) + 0.5)
 
     @Pyro4.expose
     def make_mask(self, radius):
@@ -240,18 +229,18 @@ class AdaptiveOpticsDevice(Device):
                     self._logger.info(type(e))
                     self._logger.info("Error is: %s" %(e))
                     raise e
-        if self.roi is not None:
-            #self._logger.info('roi is not None')
-            data_cropped = np.zeros((self.roi[2]*2,self.roi[2]*2), dtype=float)
-            data_cropped[:,:] = data_raw[self.roi[0]-self.roi[2]:self.roi[0]+self.roi[2],
-                            self.roi[1]-self.roi[2]:self.roi[1]+self.roi[2]]
-            if self.mask is not None:
-                data = data_cropped * self.mask
-            else:
-                self.mask = self.make_mask(self.roi[2])
-                data = data_cropped 
-        else:
+        if np.any(self.roi) is None:
             data = data_raw
+        else:
+            # self._logger.info('roi is not None')
+            data_cropped = np.zeros((self.roi[2] * 2, self.roi[2] * 2), dtype=float)
+            data_cropped[:, :] = data_raw[self.roi[0] - self.roi[2]:self.roi[0] + self.roi[2],
+                                 self.roi[1] - self.roi[2]:self.roi[1] + self.roi[2]]
+            if np.any(self.mask) is None:
+                self.mask = self.make_mask(self.roi[2])
+                data = data_cropped
+            else:
+                data = data_cropped * self.mask
         return data
 
     @Pyro4.expose
@@ -276,7 +265,7 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        if image is None:
+        if np.any(image) is None:
             image = self.acquire()
 
         #Ensure the filters has been constructed
@@ -368,8 +357,8 @@ class AdaptiveOpticsDevice(Device):
         return rms_error
 
     @Pyro4.expose
-    def calibrate(self, numPokeSteps = 5, threshold = 0.005):
-        self.camera.set_exposure_time(0.05)
+    def calibrate(self, numPokeSteps = 10, threshold = 0.005):
+        self.camera.set_exposure_time(0.1)
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
@@ -394,14 +383,14 @@ class AdaptiveOpticsDevice(Device):
 
         nzernike = self.numActuators
 
-        poke_min = -0.65
-        poke_max = 0.65
+        poke_min = 0.25
+        poke_max = 0.75
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*(np.shape(np.where(self.pupil_ac == 1))[1])
 
         image_stack_cropped = np.zeros((noImages,self.roi[2]*2,self.roi[2]*2))
 
-        actuator_values = np.zeros((noImages,nzernike))
+        actuator_values = np.zeros((noImages,nzernike)) + 0.5
         for ii in range(nzernike):
             for jj in range(numPokeSteps):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
@@ -420,7 +409,9 @@ class AdaptiveOpticsDevice(Device):
                 poke_image = self.acquire()
                 image_stack_cropped[curr_calc-1,:,:] = poke_image
 
-        self.send(np.zeros(self.numActuators))
+        self.reset()
+
+        np.save("image_stack_cropped", image_stack_cropped)
 
         self._logger.info("Computing Control Matrix")
         self.controlMatrix = aoAlg.create_control_matrix(imageStack = image_stack_cropped,
@@ -430,10 +421,9 @@ class AdaptiveOpticsDevice(Device):
                                                          pupil_ac = self.pupil_ac,
                                                          threshold = threshold)
         self._logger.info("Control Matrix computed")
-        np.save("image_stack_cropped",image_stack_cropped)
         np.save("control_matrix", self.controlMatrix)
 
-        self.flat_actuators_sys = self.flatten_phase(iterations=5)
+        self.flat_actuators_sys = self.flatten_phase(iterations=25)
 
         return self.controlMatrix, self.flat_actuators_sys
 
@@ -462,53 +452,53 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("Control Matrix dimension 0 axis and number of "
                             "actuators do not match.")
 
-        flat_actuators = np.zeros(numActuators)
-        self.send(flat_actuators)
-        previous_flat_actuators = flat_actuators
+        best_flat_actuators = np.zeros(numActuators) + 0.5
+        self.send(best_flat_actuators)
 
-        z_amps = np.zeros(nzernike)
-        previous_z_amps = np.zeros(nzernike)
+        best_z_amps = np.zeros(nzernike)
 
-        previous_rms_error = np.inf
+        #Get a measure of the RMS phase error of the uncorrected wavefront
+        #The corrected wavefront should be better than this
+        interferogram = self.acquire()
+        interferogram_unwrap = self.phaseunwrap(interferogram)
+        true_flat = np.zeros(np.shape(interferogram_unwrap))
+        best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
 
         for ii in range(iterations):
             interferogram = self.acquire()
-
             interferogram_unwrap = self.phaseunwrap(interferogram)
-            z_amps[:] = self.getzernikemodes(interferogram_unwrap, nzernike)
-            flat_actuators[:] = -1.0 * aoAlg.ac_pos_from_zernike(z_amps, self.numActuators)
-            flat_actuators += previous_flat_actuators
+            z_amps = self.getzernikemodes(interferogram_unwrap, nzernike)
 
-            flat_actuators[flat_actuators > 1] = 1
-            flat_actuators[flat_actuators < -1] = -1
+            #We ignore piston, tip and tilt
+            z_amps[0:3] = 0
+            flat_actuators = self.set_phase(z_amps, offset=best_flat_actuators)
 
-            self.send(flat_actuators)
+            time.sleep(1)
 
-            true_flat = np.zeros(np.shape(interferogram_unwrap))
             rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
-            if rms_error < previous_rms_error:
-                previous_z_amps[:] = z_amps[:]
-                previous_flat_actuators[:] = flat_actuators[:]
+            if rms_error < best_rms_error:
+                best_z_amps = np.copy(z_amps)
+                best_flat_actuators = np.copy(flat_actuators)
+                best_rms_error = np.copy(rms_error)
+            elif rms_error > best_rms_error:
+                self._logger.info("RMS wavefront error worse than before")
             else:
-                print("Ringing occured after %f iterations") %(ii + 1)
+                self._logger.info("No improvement in RMS wavefront error")
+                best_flat_actuators[:] = np.copy(flat_actuators)
 
-            #try:
-            #    assert np.all(abs(flat_actuators)<1)
-            #except:
-            #    raise Exception("All actuators at max stroke length")
-
-        return flat_actuators
+        self.send(best_flat_actuators)
+        return best_flat_actuators
 
     @Pyro4.expose
     def set_phase(self, applied_z_modes, offset = None):
-        actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes, self.numActuators)
+        actuator_pos = -1.0 * aoAlg.ac_pos_from_zernike(applied_z_modes, self.numActuators)
+        #actuator_pos[abs(actuator_pos) > 0.1] = 0
         if np.any(offset) is None:
-            pass
+            actuator_pos += 0.5
         else:
             actuator_pos += offset
-        self._logger.info(actuator_pos)
         self.send(actuator_pos)
-        return
+        return actuator_pos
 
     @Pyro4.expose
     def assess_character(self, modes_tba = None):
