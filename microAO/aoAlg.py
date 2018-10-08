@@ -127,7 +127,10 @@ class AdaptiveOpticsFunctions():
         weight = weight*(weight>weight[24,49])
 
         for ii in range(10):
-            window[:,:] = np.log(abs(fftarray[maxpoint[1]-25:maxpoint[1]+25,maxpoint[0]-25:maxpoint[0]+25]))
+            try:
+                window[:,:] = np.log(abs(fftarray[maxpoint[1]-25:maxpoint[1]+25,maxpoint[0]-25:maxpoint[0]+25]))
+            except ValueError:
+                raise Exception("Interferometer stripes are too fine. Please make them coarser").with_traceback()
             thresh = np.max(window) - 5
             CoM = np.zeros((1,2))
             window[window < thresh] = 0
