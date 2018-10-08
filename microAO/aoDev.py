@@ -24,6 +24,7 @@ import Pyro4
 import time
 from microAO.aoAlg import AdaptiveOpticsFunctions
 
+#Should fix this with multiple inheritance for this class!
 aoAlg = AdaptiveOpticsFunctions()
 
 from microscope.devices import Device
@@ -120,8 +121,6 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def send(self, values):
-        self._logger.info("Sending patterns to DM")
-
         #Need to normalise patterns because general DM class expects 0-1 values
         values[values > 1.0] = 1.0
         values[values < 0.0] = 0.0
@@ -482,7 +481,7 @@ class AdaptiveOpticsDevice(Device):
 
             #We ignore piston, tip and tilt
             z_amps = z_amps * z_modes_ignore
-            flat_actuators = self.set_phase(z_amps, offset=best_flat_actuators)
+            flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
 
             time.sleep(1)
 
@@ -502,7 +501,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def set_phase(self, applied_z_modes, offset = None):
-        actuator_pos = -1.0 * aoAlg.ac_pos_from_zernike(applied_z_modes, self.numActuators)
+        actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes, self.numActuators)
         #actuator_pos[abs(actuator_pos) > 0.1] = 0
         if np.any(offset) is None:
             actuator_pos += 0.5
