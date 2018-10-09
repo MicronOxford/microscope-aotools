@@ -80,15 +80,6 @@ class AdaptiveOpticsDevice(Device):
         #self.pupil_ac = np.ones(self.numActuators)
 
         #Preliminary mask for DeepSIM
-        #self.pupil_ac = np.asarray([0,0,0,0,0,
-        #                            0,0,1,1,1,0,0,
-        #                            0,0,1,1,1,1,1,0,0,
-        #                            0,1,1,1,1,1,1,1,0,
-        #                            0,1,1,1,1,1,1,1,0,
-        #                            0,1,1,1,1,1,1,1,0,
-        #                            0,0,1,1,1,1,1,0,0,
-        #                            0,0,1,1,1,0,0,
-        #                            0,0,0,0,0])
         self.pupil_ac = np.ones(self.numActuators)
 
         try:
@@ -231,7 +222,6 @@ class AdaptiveOpticsDevice(Device):
         if np.any(self.roi) is None:
             data = data_raw
         else:
-            # self._logger.info('roi is not None')
             data_cropped = np.zeros((self.roi[2] * 2, self.roi[2] * 2), dtype=float)
             data_cropped[:, :] = data_raw[self.roi[0] - self.roi[2]:self.roi[0] + self.roi[2],
                                  self.roi[1] - self.roi[2]:self.roi[1] + self.roi[2]]
@@ -502,7 +492,6 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def set_phase(self, applied_z_modes, offset = None):
         actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes, self.numActuators)
-        #actuator_pos[abs(actuator_pos) > 0.1] = 0
         if np.any(offset) is None:
             actuator_pos += 0.5
         else:
@@ -522,8 +511,6 @@ class AdaptiveOpticsDevice(Device):
         else:
             pass
 
-        #flat_values = self.flatten_phase(iterations=5)
-
         if modes_tba is None:
             modes_tba = self.numActuators
         assay = np.zeros((modes_tba,modes_tba))
@@ -532,7 +519,7 @@ class AdaptiveOpticsDevice(Device):
             self.reset()
             z_modes_ac0 = self.measure_zernike(modes_tba)
             applied_z_modes[ii] = 1
-            self.set_phase(applied_z_modes)#, offset=flat_values)
+            self.set_phase(applied_z_modes)
             self._logger.info("Appling Zernike mode %i/%i" %(ii,modes_tba))
             acquired_z_modes = self.measure_zernike(modes_tba)
             self._logger.info("Measured phase")
