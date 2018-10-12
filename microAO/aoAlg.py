@@ -250,7 +250,6 @@ class AdaptiveOpticsFunctions():
                 #Get the amplitudes of each Zernike mode for the poke range of one actuator
                 for jj in range(numPokeSteps):
                     curr_calc = (ii * numPokeSteps) + jj + 1
-                    print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
                     image_unwrap = self.phase_unwrap(imageStack[((ii * numPokeSteps) + jj),:,:])
                     diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
                     if np.any(diff_image > 2*np.pi):
@@ -262,20 +261,24 @@ class AdaptiveOpticsFunctions():
                         curr_amps = self.get_zernike_modes(image_unwrap, noZernikeModes)
                         zernikeModeAmp_list.append(curr_amps)
                         all_zernikeModeAmp[(curr_calc-1),:] = curr_amps
-                        print("Zernike modes %d/%d calculated" %(curr_calc, noImages))
 
                 pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
                 zernikeModeAmp = np.asarray(zernikeModeAmp_list)
 
+                #Check that the influence slope for each actuator can actually be calculated
+                if len(pokeSteps_trimmed) < 2:
+                    raise Exception("Not enough Zernike mode values to calculate slope for actuator %i. "
+                          "Control matrix calculation will fail" %(ii+1))
+                    break
+
+
                 #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
                 for kk in range(noZernikeModes):
-                    print("Fitting regression %d/%d..." % (kk+1, noZernikeModes))
                     try:
                         slopes[kk],intercepts[kk],r_values[kk],p_values[kk],std_errs[kk] = \
                             stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
                     except Exception as e:
                         print(e)
-                    print("Regression %d/%d fitted" % (kk + 1, noZernikeModes))
 
                 #Input obtained slopes as the entries in the control matrix
                 C_mat[:,ii] = slopes[:]
