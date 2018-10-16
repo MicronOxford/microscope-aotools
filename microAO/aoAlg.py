@@ -25,6 +25,8 @@ from scipy.signal import tukey, gaussian
 import aotools
 import scipy.stats as stats
 from skimage.restoration import unwrap_phase
+from skimage.morphology import watershed
+from skimage.filters import sobel
 from scipy.integrate import trapz
 
 class AdaptiveOpticsFunctions():
@@ -302,3 +304,51 @@ class AdaptiveOpticsFunctions():
             raise Exception
 
         return actuator_pos
+
+    def measure_fourier_metric(self, image, roi, fft_frac=0.2):
+        # Crop image to ROI
+        image_cropped = image[roi[0] - roi[2]:roi[0] + roi[2], roi[1] - roi[2]:roi[1] + roi[2]]
+
+        # Apply tukey window
+        image_shift = np.fft.fftshift(image_cropped)
+        tukey_window = tukey(image_shift.shape[0], .10, True)
+        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
+        image_tukey = image_shift * tukey_window
+
+        # Perform fourier transform
+        fftarray = np.fft.fftshift(np.fft.fft2(image_tukey))
+
+        # Isolate Fourier frequencies within OTF
+        ## Selects OTF boundaries
+        fftarray_abslog = np.log(abs(fftarray))
+        fftarray_sobel = sobel(fftarray_abslog)
+
+        ## Get markers for background and important Fourier data
+        markers = np.zeros_like(fftarray_abslog)
+        markers[fftarray_abslog < 0.125 * np.max(fftarray_abslog)] = 1
+        markers[fftarray_abslog > 0.6 * np.max(fftarray_abslog)] = 2
+
+        ## Do watershed segmentation
+        fftarray_seg = watershed(fftarray_sobel, markers)
+
+        ## Get the radius of OTF
+        OTF_outer_rad = np.where(
+            fftarray_seg[int(fftarray_seg.shape[0] / 2), :] == np.max(fftarray_seg[int(fftarray_seg.shape[0] / 2), :]))[
+            0][0]
+        radius = int(fftarray_seg.shape[0] / 2)
+        OTF_outer_mask = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
+                    np.arange(-radius, radius) ** 2)) < OTF_outer_rad
+
+        ## Get ring of high spatial frequencies
+        OTF_inner_rad = int(np.round(np.sqrt((1 - fft_frac) * OTF_outer_rad ** 2)))
+        OTF_inner_mask_neg = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
+                    np.arange(-radius, radius) ** 2)) < OTF_inner_rad
+        OTF_inner_mask = (OTF_inner_mask_neg - 1) * -1
+        OTF_ring_mask = OTF_outer_mask * OTF_inner_mask
+
+        # Get the RMS power in the top 20% of Fourier frequencies
+        fftarray_ring = OTF_ring_mask * fftarray
+        fftarray_ring_sq = np.real(fftarray_ring * np.conj(fftarray_ring))
+
+        metric = np.sqrt(np.mean(fftarray_ring_sq[fftarray_ring_sq != 0]))
+        return metric
