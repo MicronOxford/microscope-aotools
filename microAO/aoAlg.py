@@ -24,6 +24,7 @@ from scipy.ndimage.measurements import center_of_mass
 from scipy.signal import tukey, gaussian
 import aotools
 import scipy.stats as stats
+import sympy
 from skimage.restoration import unwrap_phase
 from skimage.morphology import watershed
 from skimage.filters import sobel
@@ -305,7 +306,10 @@ class AdaptiveOpticsFunctions():
 
         return actuator_pos
 
-    def measure_fourier_metric(self, image, roi, fft_frac=0.2):
+    def fourier_metric(self, image, roi = None, fft_frac=0.2):
+        if np.any(roi == None):
+            roi = (image.shape[0]/2, image.shape[1]/2, image.shape[1]/2)
+
         # Crop image to ROI
         image_cropped = image[roi[0] - roi[2]:roi[0] + roi[2], roi[1] - roi[2]:roi[1] + roi[2]]
 
@@ -352,3 +356,18 @@ class AdaptiveOpticsFunctions():
 
         metric = np.sqrt(np.mean(fftarray_ring_sq[fftarray_ring_sq != 0]))
         return metric
+
+    def find_aberration_min(self,image_stack, zernike_amplitudes):
+        metric_measurements = np.zeros(np.shape(image_stack[0]))
+
+        for ii in range(np.shape(metric_measurements)):
+            metric_measurements[ii] = self.fourier_metric(image_stack[ii,:,:])
+
+        a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metric_measurements, 2)
+
+        x = sympy.Symbol('x', real=True)
+        metric_function = (a_2 * (x ** 2)) + (a_1 * x) + a_0
+        metric_function_dx = metric_function.diff(x)
+
+        zernike_for_aberration_min = sympy.solve(metric_function_dx, x)
+        return zernike_for_aberration_min
