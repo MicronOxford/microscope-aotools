@@ -357,7 +357,7 @@ class AdaptiveOpticsFunctions():
         metric = np.sqrt(np.mean(fftarray_ring_sq[fftarray_ring_sq != 0]))
         return metric
 
-    def find_aberration_min(self,image_stack, zernike_amplitudes):
+    def find_zernike_amp_sensorless(self,image_stack, zernike_amplitudes):
         metric_measurements = np.zeros(np.shape(image_stack[0]))
 
         for ii in range(np.shape(metric_measurements)):
@@ -369,5 +369,5 @@ class AdaptiveOpticsFunctions():
         metric_function = (a_2 * (x ** 2)) + (a_1 * x) + a_0
         metric_function_dx = metric_function.diff(x)
 
-        zernike_for_aberration_min = sympy.solve(metric_function_dx, x)
-        return zernike_for_aberration_min
+        amplitude_present = sympy.solve(metric_function_dx, x)
+        return amplitude_present
