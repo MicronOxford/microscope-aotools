@@ -178,6 +178,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def reset(self):
+        self._logger.info("Resetting DM")
         self.send(np.zeros(self.numActuators) + 0.5)
 
     @Pyro4.expose
@@ -346,7 +347,7 @@ class AdaptiveOpticsDevice(Device):
         return rms_error
 
     @Pyro4.expose
-    def calibrate(self, numPokeSteps = 10, threshold = 0.005):
+    def calibrate(self, numPokeSteps = 5, threshold = 0.005):
         self.camera.set_exposure_time(0.1)
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -464,16 +465,20 @@ class AdaptiveOpticsDevice(Device):
         true_flat = np.zeros(np.shape(interferogram_unwrap))
         best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
 
+        #We're going to pass back all the interferograms to cockpit. Remove this later!
+        interferogram_stack = np.zeros((iterations, interferogram.shape[0], interferogram.shape[1]))
+        interferogram_unwrap_stack = np.zeros((iterations, interferogram_unwrap.shape[0], interferogram_unwrap.shape[1]))
+
         for ii in range(iterations):
             interferogram = self.acquire()
             interferogram_unwrap = self.phaseunwrap(interferogram)
+            interferogram_stack[ii,:,:] = interferogram
+            interferogram_unwrap_stack[ii,:,:] = interferogram_unwrap
             z_amps = self.getzernikemodes(interferogram_unwrap, nzernike)
 
             #We ignore piston, tip and tilt
             z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
-
-            time.sleep(1)
 
             rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
             if rms_error < best_rms_error:
@@ -487,7 +492,7 @@ class AdaptiveOpticsDevice(Device):
                 best_flat_actuators[:] = np.copy(flat_actuators)
 
         self.send(best_flat_actuators)
-        return best_flat_actuators
+        return best_flat_actuators, interferogram_stack, interferogram_unwrap_stack
 
     @Pyro4.expose
     def set_phase(self, applied_z_modes, offset = None):
