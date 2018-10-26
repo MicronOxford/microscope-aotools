@@ -191,8 +191,7 @@ class AdaptiveOpticsDevice(Device):
         self.acquiring = True
         while self.acquiring == True:
             try:
-                self.camera.soft_trigger()
-                data_raw = self.camera.get_current_image()
+                data_raw, timestamp = self.camera.grab_next_data()
                 self.acquiring = False
             except Exception as e:
                 if str(e) == str("ERROR 10: Timeout"):
@@ -209,8 +208,7 @@ class AdaptiveOpticsDevice(Device):
         self.acquiring = True
         while self.acquiring == True:
             try:
-                self.camera.soft_trigger()
-                data_raw = self.camera.get_current_image()
+                data_raw, timestamp = self.camera.grab_next_data()
                 self.acquiring = False
             except Exception as e:
                 if str(e) == str("ERROR 10: Timeout"):
