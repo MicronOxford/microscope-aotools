@@ -34,6 +34,7 @@ setuptools.setup(
     ## We use six instead of anything else because microscope is already
     ## dependent on size
     "six",
+    "sympy",
   ],
 
   ## https://pypi.python.org/pypi?:action=list_classifiers
