@@ -254,7 +254,7 @@ class AdaptiveOpticsFunctions():
                     diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
                     if np.any(diff_image > 2*np.pi):
                         print("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
-                        print("Zernike modes %d/%d not calculates" %(curr_calc, noImages))
+                        print("Zernike modes %d/%d not calculated" %(curr_calc, noImages))
                     else:
                         pokeSteps_trimmed_list.append(pokeSteps[jj])
                         print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
