@@ -61,6 +61,7 @@ class AdaptiveOpticsDevice(Device):
                                                 mirror_uri[1], mirror_uri[2]))
         #self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
         self.numActuators = self.mirror.n_actuators
+        self._logger.info("Number of actuators: %i" %self.numActuators)
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
@@ -116,7 +117,10 @@ class AdaptiveOpticsDevice(Device):
         values[values > 1.0] = 1.0
         values[values < 0.0] = 0.0
 
-        self.mirror.apply_pattern(values)
+        try:
+            self.mirror.apply_pattern(values)
+        except Exception as e:
+            self._logger.info(e)
 
     @Pyro4.expose
     def queue_patterns(self, patterns):
@@ -126,7 +130,10 @@ class AdaptiveOpticsDevice(Device):
         patterns[patterns > 1.0] = 1.0
         patterns[patterns < 0.0] = 0.0
 
-        self.mirror.queue_patterns(patterns)
+        try:
+            self.mirror.queue_patterns(patterns)
+        except Exception as e:
+            self._logger.info(e)
 
     @Pyro4.expose
     def set_roi(self, y0, x0, radius):
@@ -463,15 +470,9 @@ class AdaptiveOpticsDevice(Device):
         true_flat = np.zeros(np.shape(interferogram_unwrap))
         best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
 
-        #We're going to pass back all the interferograms to cockpit. Remove this later!
-        interferogram_stack = np.zeros((iterations, interferogram.shape[0], interferogram.shape[1]))
-        interferogram_unwrap_stack = np.zeros((iterations, interferogram_unwrap.shape[0], interferogram_unwrap.shape[1]))
-
         for ii in range(iterations):
             interferogram = self.acquire()
             interferogram_unwrap = self.phaseunwrap(interferogram)
-            interferogram_stack[ii,:,:] = interferogram
-            interferogram_unwrap_stack[ii,:,:] = interferogram_unwrap
             z_amps = self.getzernikemodes(interferogram_unwrap, nzernike)
 
             #We ignore piston, tip and tilt
@@ -490,7 +491,7 @@ class AdaptiveOpticsDevice(Device):
                 best_flat_actuators[:] = np.copy(flat_actuators)
 
         self.send(best_flat_actuators)
-        return best_flat_actuators, interferogram_stack, interferogram_unwrap_stack
+        return best_flat_actuators
 
     @Pyro4.expose
     def set_phase(self, applied_z_modes, offset = None):
