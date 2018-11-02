@@ -61,7 +61,6 @@ class AdaptiveOpticsDevice(Device):
                                                 mirror_uri[1], mirror_uri[2]))
         #self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
         self.numActuators = self.mirror.n_actuators
-        self._logger.info("Number of actuators: %i" %self.numActuators)
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         #Mask for the interferometric data
