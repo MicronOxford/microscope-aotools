@@ -461,18 +461,27 @@ class AdaptiveOpticsDevice(Device):
         best_flat_actuators = np.zeros(numActuators) + 0.5
         self.send(best_flat_actuators)
 
-        best_z_amps = np.zeros(nzernike)
-
         #Get a measure of the RMS phase error of the uncorrected wavefront
         #The corrected wavefront should be better than this
         interferogram = self.acquire()
         interferogram_unwrap = self.phaseunwrap(interferogram)
+
+        x, y = interferogram_unwrap.shape
+        assert x == y
+
         true_flat = np.zeros(np.shape(interferogram_unwrap))
         best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
 
         for ii in range(iterations):
             interferogram = self.acquire()
             interferogram_unwrap = self.phaseunwrap(interferogram)
+
+            edge_mask = np.sqrt(
+                (np.arange(-x / 2.0, x / 2.0) ** 2).reshape((x, 1)) + (np.arange(-x / 2.0, x / 2.0) ** 2)) < (
+                                    (x / 2.0) - 3)
+            diff_image = abs(np.diff(np.diff(interferogram_unwrap, axis=1), axis=0)) * edge_mask[:-1, :-1]
+            no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
+
             z_amps = self.getzernikemodes(interferogram_unwrap, nzernike)
 
             #We ignore piston, tip and tilt
@@ -481,11 +490,12 @@ class AdaptiveOpticsDevice(Device):
 
             rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
             if rms_error < best_rms_error:
-                best_z_amps = np.copy(z_amps)
                 best_flat_actuators = np.copy(flat_actuators)
                 best_rms_error = np.copy(rms_error)
             elif rms_error > best_rms_error:
                 self._logger.info("RMS wavefront error worse than before")
+            elif no_discontinuities > (x * y) / 1000.0:
+                self._logger.info("Too many discontinuities in wavefront unwrap")
             else:
                 self._logger.info("No improvement in RMS wavefront error")
                 best_flat_actuators[:] = np.copy(flat_actuators)
