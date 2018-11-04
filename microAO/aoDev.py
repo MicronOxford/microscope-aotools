@@ -48,14 +48,14 @@ class AdaptiveOpticsDevice(Device):
     "START" : TriggerMode.START,
     }
 
-    def __init__(self, camera_uri, mirror_uri, **kwargs):
+    def __init__(self, wavefront_uri, mirror_uri, **kwargs):
         # Init will fail if devices it depends on aren't already running, but
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
-        # Camera or wavefront sensor. Must support soft_trigger for now.
-        self.camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(camera_uri[0].__name__,
-                                                camera_uri[1], camera_uri[2]))
-        self.camera.enable()
+        # Wavefront sensor. Must support soft_trigger for now.
+        self.wavefront_camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(wavefront_uri[0].__name__,
+                                                    wavefront_uri[1], wavefront_uri[2]))
+        self.wavefront_camera.enable()
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
@@ -198,7 +198,7 @@ class AdaptiveOpticsDevice(Device):
         self.acquiring = True
         while self.acquiring == True:
             try:
-                data_raw, timestamp = self.camera.grab_next_data()
+                data_raw, timestamp = self.wavefront_camera.grab_next_data()
                 self.acquiring = False
             except Exception as e:
                 if str(e) == str("ERROR 10: Timeout"):
@@ -215,7 +215,7 @@ class AdaptiveOpticsDevice(Device):
         self.acquiring = True
         while self.acquiring == True:
             try:
-                data_raw, timestamp = self.camera.grab_next_data()
+                data_raw, timestamp = self.wavefront_camera.grab_next_data()
                 self.acquiring = False
             except Exception as e:
                 if str(e) == str("ERROR 10: Timeout"):
@@ -353,7 +353,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def calibrate(self, numPokeSteps = 5, threshold = 0.005):
-        self.camera.set_exposure_time(0.1)
+        self.wavefront_camera.set_exposure_time(0.1)
         #Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
