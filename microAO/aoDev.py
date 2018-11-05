@@ -489,12 +489,13 @@ class AdaptiveOpticsDevice(Device):
 
             rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
             if rms_error < best_rms_error:
-                best_flat_actuators = np.copy(flat_actuators)
-                best_rms_error = np.copy(rms_error)
+                if no_discontinuities > (x * y) / 1000.0:
+                    self._logger.info("Too many discontinuities in wavefront unwrap")
+                else:
+                    best_flat_actuators = np.copy(flat_actuators)
+                    best_rms_error = np.copy(rms_error)
             elif rms_error > best_rms_error:
                 self._logger.info("RMS wavefront error worse than before")
-            elif no_discontinuities > (x * y) / 1000.0:
-                self._logger.info("Too many discontinuities in wavefront unwrap")
             else:
                 self._logger.info("No improvement in RMS wavefront error")
                 best_flat_actuators[:] = np.copy(flat_actuators)
