@@ -376,14 +376,14 @@ class AdaptiveOpticsFunctions():
         amplitude_present = sympy.solve(metric_function_dx, x)
         return amplitude_present
 
-    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, noZernike, nollZernike):
-        numMes = full_zernike_applied.shape[0]/noZernike
+    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike):
+        numMes = full_zernike_applied.shape[0]/nollZernike.shape[0]
 
         coef = np.zeros(full_zernike_applied.shape[1])
-        for ii in range(noZernike):
+        for ii in range(nollZernike.shape[0]):
             image_stack = full_image_stack[ii * numMes:(ii + 1) * numMes,:,:]
-            zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]]
+            zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]-1]
             amp = self.find_zernike_amp_sensorless(image_stack,zernike_applied)
-            coef[nollZernike[ii]] = amp
+            coef[nollZernike[ii]-1] = amp
 
         return coef
