@@ -557,3 +557,9 @@ class AdaptiveOpticsDevice(Device):
             applied_z_modes[ii] = 0.0
         self.reset()
         return assay
+
+    @Pyro4.expose
+    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike):
+        #May change this function later if we hand control of other cameras to the composite device
+        coef = aoAlg.get_zernike_modes_sensorless(full_image_stack, full_zernike_applied, nollZernike)
+        return coef
