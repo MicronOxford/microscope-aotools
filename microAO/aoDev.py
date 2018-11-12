@@ -71,6 +71,10 @@ class AdaptiveOpticsDevice(Device):
         self.controlMatrix = None
         #System correction
         self.flat_actuators_sys = np.zeros(self.numActuators)
+        #Last applied actuators values
+        self.last_actuator_values = None
+        # Last applied actuators pattern
+        self.last_actuator_patterns = None
 
         ##We don't use all the actuators. Create a mask for the actuators outside
         ##the pupil so we can selectively calibrate them. 0 denotes actuators at
@@ -121,6 +125,12 @@ class AdaptiveOpticsDevice(Device):
         except Exception as e:
             self._logger.info(e)
 
+        self.last_actuator_values = values
+
+    @Pyro4.expose
+    def get_last_actuator_values(self):
+        return self.last_actuator_values
+
     @Pyro4.expose
     def queue_patterns(self, patterns):
         self._logger.info("Queuing patterns on DM")
@@ -133,6 +143,12 @@ class AdaptiveOpticsDevice(Device):
             self.mirror.queue_patterns(patterns)
         except Exception as e:
             self._logger.info(e)
+
+        self.last_actuator_patterns = patterns
+
+    @Pyro4.expose
+    def get_last_actuator_patterns(self):
+        return self.last_actuator_patterns
 
     @Pyro4.expose
     def set_roi(self, y0, x0, radius):
