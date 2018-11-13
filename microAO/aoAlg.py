@@ -362,9 +362,9 @@ class AdaptiveOpticsFunctions():
         return metric
 
     def find_zernike_amp_sensorless(self,image_stack, zernike_amplitudes):
-        metric_measurements = np.zeros(np.shape(image_stack[0]))
+        metric_measurements = np.zeros(image_stack.shape[0])
 
-        for ii in range(np.shape(metric_measurements)):
+        for ii in range(metric_measurements.shape[0]):
             metric_measurements[ii] = self.fourier_metric(image_stack[ii,:,:])
 
         a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metric_measurements, 2)
