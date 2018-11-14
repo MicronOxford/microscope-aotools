@@ -310,7 +310,7 @@ class AdaptiveOpticsFunctions():
 
         return actuator_pos
 
-    def fourier_metric(self, image, roi = None, fft_frac=0.2):
+    def measure_fourier_metric(self, image, roi=None, fft_frac=0.2):
         if np.any(roi == None):
             roi = (image.shape[0]/2, image.shape[1]/2, image.shape[1]/2)
 
@@ -329,12 +329,13 @@ class AdaptiveOpticsFunctions():
         # Isolate Fourier frequencies within OTF
         ## Selects OTF boundaries
         fftarray_abslog = np.log(abs(fftarray))
-        fftarray_sobel = sobel(fftarray_abslog)
+        fftarray_norm = (fftarray_abslog - np.min(fftarray_abslog)) / np.max(fftarray_abslog - np.min(fftarray_abslog))
+        fftarray_sobel = sobel(fftarray_norm)
 
         ## Get markers for background and important Fourier data
-        markers = np.zeros_like(fftarray_abslog)
-        markers[fftarray_abslog < 0.125 * np.max(fftarray_abslog)] = 1
-        markers[fftarray_abslog > 0.6 * np.max(fftarray_abslog)] = 2
+        markers = np.zeros_like(fftarray_norm)
+        markers[fftarray_norm < 0.25] = 1
+        markers[fftarray_norm > 0.5] = 2
 
         ## Do watershed segmentation
         fftarray_seg = watershed(fftarray_sobel, markers)
