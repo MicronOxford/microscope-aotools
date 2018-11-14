@@ -366,7 +366,7 @@ class AdaptiveOpticsFunctions():
         metric_measurements = np.zeros(image_stack.shape[0])
 
         for ii in range(metric_measurements.shape[0]):
-            metric_measurements[ii] = self.fourier_metric(image_stack[ii,:,:])
+            metric_measurements[ii] = self.measure_fourier_metric(image_stack[ii,:,:])
 
         a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metric_measurements, 2)
 
@@ -374,7 +374,7 @@ class AdaptiveOpticsFunctions():
         metric_function = (a_2 * (x ** 2)) + (a_1 * x) + a_0
         metric_function_dx = metric_function.diff(x)
 
-        amplitude_present = sympy.solve(metric_function_dx, x)
+        amplitude_present = sympy.solve(metric_function_dx, x)[0]
         return amplitude_present
 
     def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike):
