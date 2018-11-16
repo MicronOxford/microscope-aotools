@@ -311,28 +311,13 @@ class AdaptiveOpticsFunctions():
 
         return actuator_pos
 
-    def make_fourier_ring_mask(self,image, roi=None, fft_frac=0.2, wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.11 * 10 ** -6):
-        if np.any(roi == None):
-            roi = (image.shape[0]/2, image.shape[1]/2, image.shape[1]/2)
-
-        # Crop image to ROI
-        image_cropped = image[roi[0] - roi[2]:roi[0] + roi[2], roi[1] - roi[2]:roi[1] + roi[2]]
-
-        # Apply tukey window
-        image_shift = np.fft.fftshift(image_cropped)
-        tukey_window = tukey(image_shift.shape[0], .10, True)
-        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
-        image_tukey = image_shift * tukey_window
-
-        # Perform fourier transform
-        fftarray = np.fft.fftshift(np.fft.fft2(image_tukey))
-
+    def make_fourier_ring_mask(self, size, fft_frac=0.2, wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
         # Isolate Fourier frequencies within OTF
         ## Get the radius of OTF
         ray_crit_freq = 1 / (1.22 * wavelength / (2 * NA))
         max_freq = 1 / (2 * pixel_size)
-        OTF_outer_rad = np.round((ray_crit_freq / max_freq) * (fftarray.shape[0] / 2))
-        radius = int(fftarray.shape[0] / 2)
+        OTF_outer_rad = np.round((ray_crit_freq / max_freq) * (size[0] / 2))
+        radius = int(size[0] / 2)
         OTF_outer_mask = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
                     np.arange(-radius, radius) ** 2)) < OTF_outer_rad
 
@@ -349,7 +334,7 @@ class AdaptiveOpticsFunctions():
             roi = (image.shape[0] / 2, image.shape[1] / 2, image.shape[1] / 2)
 
         if np.any(self.OTF_ring_mask) == None:
-            self.OTF_ring_mask = self.make_fourier_ring_mask(image, roi=roi, fft_frac=fft_frac)
+            self.OTF_ring_mask = self.make_fourier_ring_mask(image.shape, fft_frac=fft_frac)
 
         # Crop image to ROI
         image_cropped = image[roi[0] - roi[2]:roi[0] + roi[2], roi[1] - roi[2]:roi[1] + roi[2]]
