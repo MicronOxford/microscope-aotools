@@ -559,6 +559,11 @@ class AdaptiveOpticsDevice(Device):
         return assay
 
     @Pyro4.expose
+    def set_sensorless_ring_mask(self, size, pixel_size, NA=1.1, fft_frac=0.2, wavelength=500 * 10 ** -9):
+        ring_mask = aoAlg.make_fourier_ring_mask(size, fft_frac=fft_frac, wavelength=wavelength, NA=NA, pixel_size=pixel_size)
+        return ring_mask
+
+    @Pyro4.expose
     def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike):
         #May change this function later if we hand control of other cameras to the composite device
         coef = aoAlg.get_zernike_modes_sensorless(full_image_stack, full_zernike_applied, nollZernike)
