@@ -173,7 +173,16 @@ class TestAOFunctions(unittest.TestCase):
 
     np.testing.assert_almost_equal(CM_var_diff, 0, decimal=3)
 
-  def test_flatten(self):
+  def test_ac_pos_from_zernike(self):
+    pass
+
+  def fourier_metric(self):
+    pass
+
+  def find_zernike_amp_sensorless(self):
+    pass
+
+  def get_zernike_modes_sensorless(self):
     pass
 
 if __name__ == '__main__':
