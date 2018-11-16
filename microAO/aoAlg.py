@@ -36,6 +36,7 @@ class AdaptiveOpticsFunctions():
         self.mask = None
         self.fft_filter = None
         self.controlMatrix = None
+        self.OTF_ring_mask = None
 
     def make_mask(self, radius):
         diameter = radius * 2
@@ -310,7 +311,7 @@ class AdaptiveOpticsFunctions():
 
         return actuator_pos
 
-    def measure_fourier_metric(self, image, roi=None, fft_frac=0.2):
+    def make_fourier_ring_mask(self,image, roi=None, fft_frac=0.2, wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.11 * 10 ** -6):
         if np.any(roi == None):
             roi = (image.shape[0]/2, image.shape[1]/2, image.shape[1]/2)
 
@@ -327,24 +328,11 @@ class AdaptiveOpticsFunctions():
         fftarray = np.fft.fftshift(np.fft.fft2(image_tukey))
 
         # Isolate Fourier frequencies within OTF
-        ## Selects OTF boundaries
-        fftarray_abslog = np.log(abs(fftarray))
-        fftarray_norm = (fftarray_abslog - np.min(fftarray_abslog)) / np.max(fftarray_abslog - np.min(fftarray_abslog))
-        fftarray_sobel = sobel(fftarray_norm)
-
-        ## Get markers for background and important Fourier data
-        markers = np.zeros_like(fftarray_norm)
-        markers[fftarray_norm < 0.25] = 1
-        markers[fftarray_norm > 0.5] = 2
-
-        ## Do watershed segmentation
-        fftarray_seg = watershed(fftarray_sobel, markers)
-
         ## Get the radius of OTF
-        OTF_outer_rad = np.where(
-            fftarray_seg[int(fftarray_seg.shape[0] / 2), :] == np.max(fftarray_seg[int(fftarray_seg.shape[0] / 2), :]))[
-            0][0]
-        radius = int(fftarray_seg.shape[0] / 2)
+        ray_crit_freq = 1 / (1.22 * wavelength / (2 * NA))
+        max_freq = 1 / (2 * pixel_size)
+        OTF_outer_rad = np.round((ray_crit_freq / max_freq) * (fftarray.shape[0] / 2))
+        radius = int(fftarray.shape[0] / 2)
         OTF_outer_mask = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
                     np.arange(-radius, radius) ** 2)) < OTF_outer_rad
 
@@ -353,20 +341,40 @@ class AdaptiveOpticsFunctions():
         OTF_inner_mask_neg = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
                     np.arange(-radius, radius) ** 2)) < OTF_inner_rad
         OTF_inner_mask = (OTF_inner_mask_neg - 1) * -1
-        OTF_ring_mask = OTF_outer_mask * OTF_inner_mask
+        self.OTF_ring_mask = OTF_outer_mask * OTF_inner_mask
+        return self.OTF_ring_mask
+
+    def measure_fourier_metric(self, image, roi=None, fft_frac=0.2):
+        if np.any(roi == None):
+            roi = (image.shape[0] / 2, image.shape[1] / 2, image.shape[1] / 2)
+
+        if np.any(self.OTF_ring_mask) == None:
+            self.OTF_ring_mask = self.make_fourier_ring_mask(image, roi=roi, fft_frac=fft_frac)
+
+        # Crop image to ROI
+        image_cropped = image[roi[0] - roi[2]:roi[0] + roi[2], roi[1] - roi[2]:roi[1] + roi[2]]
+
+        # Apply tukey window
+        image_shift = np.fft.fftshift(image_cropped)
+        tukey_window = tukey(image_shift.shape[0], .10, True)
+        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
+        image_tukey = image_shift * tukey_window
+
+        # Perform fourier transform
+        fftarray = np.fft.fftshift(np.fft.fft2(image_tukey))
 
         # Get the RMS power in the top 20% of Fourier frequencies
-        fftarray_ring = OTF_ring_mask * fftarray
+        fftarray_ring = self.OTF_ring_mask * fftarray
         fftarray_ring_sq = np.real(fftarray_ring * np.conj(fftarray_ring))
 
         metric = np.sqrt(np.mean(fftarray_ring_sq[fftarray_ring_sq != 0]))
         return metric
 
-    def find_zernike_amp_sensorless(self,image_stack, zernike_amplitudes):
+    def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, fft_frac=0.2):
         metric_measurements = np.zeros(image_stack.shape[0])
 
         for ii in range(metric_measurements.shape[0]):
-            metric_measurements[ii] = self.measure_fourier_metric(image_stack[ii,:,:])
+            metric_measurements[ii] = self.measure_fourier_metric(image_stack[ii, :, :], fft_frac=fft_frac)
 
         a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metric_measurements, 2)
 
@@ -377,14 +385,14 @@ class AdaptiveOpticsFunctions():
         amplitude_present = sympy.solve(metric_function_dx, x)[0]
         return amplitude_present
 
-    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike):
+    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike, fft_frac=0.2):
         numMes = full_zernike_applied.shape[0]/nollZernike.shape[0]
 
         coef = np.zeros(full_zernike_applied.shape[1])
         for ii in range(nollZernike.shape[0]):
             image_stack = full_image_stack[ii * numMes:(ii + 1) * numMes,:,:]
             zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]-1]
-            amp = self.find_zernike_amp_sensorless(image_stack,zernike_applied)
+            amp = self.find_zernike_amp_sensorless(image_stack, zernike_applied, fft_frac=fft_frac)
             coef[nollZernike[ii]-1] = amp
 
         return coef
