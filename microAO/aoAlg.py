@@ -24,10 +24,7 @@ from scipy.ndimage.measurements import center_of_mass
 from scipy.signal import tukey, gaussian
 import aotools
 import scipy.stats as stats
-import sympy
 from skimage.restoration import unwrap_phase
-from skimage.morphology import watershed
-from skimage.filters import sobel
 from scipy.integrate import trapz
 
 class AdaptiveOpticsFunctions():
@@ -314,15 +311,17 @@ class AdaptiveOpticsFunctions():
     def make_fourier_ring_mask(self, size, fft_frac=0.2, wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
         # Isolate Fourier frequencies within OTF
         ## Get the radius of OTF
-        ray_crit_freq = 1 / (1.22 * wavelength / (2 * NA))
+        ray_crit_dist = (1.22 * wavelength) / (2 * NA)
+        ray_crit_freq = 1 / ray_crit_dist
         max_freq = 1 / (2 * pixel_size)
-        OTF_outer_rad = np.round((ray_crit_freq / max_freq) * (size[0] / 2))
+        freq_ratio = ray_crit_freq / max_freq
+        OTF_outer_rad = (freq_ratio) * (size[0] / 2)
         radius = int(size[0] / 2)
         OTF_outer_mask = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
                     np.arange(-radius, radius) ** 2)) < OTF_outer_rad
 
         ## Get ring of high spatial frequencies
-        OTF_inner_rad = int(np.round(np.sqrt((1 - fft_frac) * OTF_outer_rad ** 2)))
+        OTF_inner_rad = np.sqrt((1 - fft_frac) * OTF_outer_rad ** 2)
         OTF_inner_mask_neg = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
                     np.arange(-radius, radius) ** 2)) < OTF_inner_rad
         OTF_inner_mask = (OTF_inner_mask_neg - 1) * -1
@@ -362,12 +361,7 @@ class AdaptiveOpticsFunctions():
             metric_measurements[ii] = self.measure_fourier_metric(image_stack[ii, :, :], fft_frac=fft_frac)
 
         a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metric_measurements, 2)
-
-        x = sympy.Symbol('x', real=True)
-        metric_function = (a_2 * (x ** 2)) + (a_1 * x) + a_0
-        metric_function_dx = metric_function.diff(x)
-
-        amplitude_present = sympy.solve(metric_function_dx, x)[0]
+        amplitude_present = (-1*a_1)/(2*a_2)
         return amplitude_present
 
     def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike, fft_frac=0.2):
