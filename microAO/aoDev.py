@@ -564,7 +564,22 @@ class AdaptiveOpticsDevice(Device):
         return ring_mask
 
     @Pyro4.expose
-    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike):
+    def correct_sensorless_single_mode(self, image_stack, zernike_applied, nollIndex, offset = None):
+        z_amps = np.zeros(self.numActuators)
+        amp_to_correct = aoAlg.find_zernike_amp_sensorless(image_stack,zernike_applied)
+        z_amps[nollIndex-1] = -1.0*amp_to_correct
+        if np.any(offset) == None:
+            ac_pos_correcting = self.set_phase(z_amps)
+        else:
+            ac_pos_correcting = self.set_phase(z_amps, offset=offset)
+        return amp_to_correct, ac_pos_correcting
+
+    @Pyro4.expose
+    def correct_sensorless_all_modes(self, full_image_stack, full_zernike_applied, nollZernike, offset = None):
         #May change this function later if we hand control of other cameras to the composite device
         coef = aoAlg.get_zernike_modes_sensorless(full_image_stack, full_zernike_applied, nollZernike)
-        return coef
+        if np.any(offset) == None:
+            ac_pos_correcting = self.set_phase(coef)
+        else:
+            ac_pos_correcting = self.set_phase(coef, offset=offset)
+        return coef, ac_pos_correcting
