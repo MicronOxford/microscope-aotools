@@ -348,20 +348,26 @@ class AdaptiveOpticsFunctions():
         fftarray = np.fft.fftshift(np.fft.fft2(image_tukey))
 
         # Get the RMS power in the top 20% of Fourier frequencies
-        fftarray_ring = self.OTF_ring_mask * fftarray
-        fftarray_ring_sq = np.real(fftarray_ring * np.conj(fftarray_ring))
+        fftarray_sq = np.real(fftarray * np.conj(fftarray))
+        fftarray_ring_sq = self.OTF_ring_mask * fftarray_sq
 
-        metric = np.sqrt(np.mean(fftarray_ring_sq[fftarray_ring_sq != 0]))
+        metric = np.sqrt(np.mean(fftarray_ring_sq[self.OTF_ring_mask != 0]))
         return metric
 
     def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, fft_frac=0.2):
         metric_measurements = np.zeros(image_stack.shape[0])
 
         for ii in range(metric_measurements.shape[0]):
+            print("Measuring metric %i/%i" %(ii+1,metric_measurements.shape[0]))
             metric_measurements[ii] = self.measure_fourier_metric(image_stack[ii, :, :], fft_frac=fft_frac)
 
+        print("Metrics measured:", metric_measurements)
+
+        print("Fitting metric polynomial")
         a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metric_measurements, 2)
+        print("Calculating amplitude present")
         amplitude_present = (-1*a_1)/(2*a_2)
+        print("Amplitude calculated = %f" %amplitude_present)
         return amplitude_present
 
     def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike, fft_frac=0.2):
@@ -371,6 +377,7 @@ class AdaptiveOpticsFunctions():
         for ii in range(nollZernike.shape[0]):
             image_stack = full_image_stack[ii * numMes:(ii + 1) * numMes,:,:]
             zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]-1]
+            print("Calculating Zernike amplitude %i/%i" %(ii+1, nollZernike.shape[0]))
             amp = self.find_zernike_amp_sensorless(image_stack, zernike_applied, fft_frac=fft_frac)
             coef[nollZernike[ii]-1] = amp
 
