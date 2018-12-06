@@ -96,6 +96,7 @@ class AdaptiveOpticsFunctions():
     def make_fft_filter(self, image, region=None):
         #Convert image to array and float
         data = np.asarray(image)
+        fft_shift_later = False
 
         if region is None:
             region = int(data.shape[0]/8.0)
@@ -116,7 +117,16 @@ class AdaptiveOpticsFunctions():
 
         #Find approximate position of first order point
         test_point = np.argmax(fftarray)
-        test_point= [int(test_point%fftarray.shape[1]),int(test_point/fftarray.shape[1])]
+        test_point = [int(test_point % fftarray.shape[1]), int(test_point / fftarray.shape[1])]
+
+        min_dist_to_edge = np.min((test_point[0], test_point[1], abs(test_point[0] - fftarray.shape[0]),
+                                   abs(test_point[1] - fftarray.shape[1])))
+
+        if min_dist_to_edge - min_dist_to_edge % 2 < int(data.shape[0] * (5.0 / 16.0)):
+            fftarray = np.fft.fftshift(fftarray)
+            test_point = np.argmax(fftarray)
+            test_point = [int(test_point % fftarray.shape[1]), int(test_point / fftarray.shape[1])]
+            fft_shift_later = True
 
         #Find first order point
         maxpoint = np.zeros(np.shape(test_point),dtype = int)
@@ -141,8 +151,7 @@ class AdaptiveOpticsFunctions():
             maxpoint[1] = maxpoint[1] - 25 + int(CoM[0,0])
 
         self.fft_filter = np.zeros(np.shape(fftarray))
-        mask_di = min(int(data.shape[0]*(7.0/16.0)), (maxpoint[0]-maxpoint[0]%2)*2, (maxpoint[1]-maxpoint[1]%2)*2,
-                      (abs(maxpoint[0]-data.shape[0])-maxpoint[0]%2)*2, (abs(maxpoint[1]-data.shape[1])-maxpoint[1]%2)*2)
+        mask_di = int(data.shape[0]*(5.0/16.0))
 
         x = np.sin(np.linspace(0, np.pi, mask_di))**2
         fourier_mask = np.outer(x,x.T)
@@ -152,6 +161,9 @@ class AdaptiveOpticsFunctions():
         x_max = maxpoint[0]+int(np.ceil((mask_di/2.0)))
 
         self.fft_filter[y_min:y_max,x_min:x_max] = fourier_mask
+        if fft_shift_later == True:
+            self.fft_filter = np.fft.ifftshift(self.fft_filter)
+
         return self.fft_filter
 
     def phase_unwrap(self,image):
@@ -173,7 +185,9 @@ class AdaptiveOpticsFunctions():
         fftarray_filt = np.fft.fftshift(fftarray_filt)
 
         #Roll data to the centre
-        g0, g1 = self.mgcentroid(self.fft_filter) - np.round(fftarray_filt.shape[0]//2)
+        centre_y_array, centre_x_array = np.where(self.fft_filter == np.max(self.fft_filter))
+        g1 = int(np.round(np.mean(centre_y_array)) - np.round(fftarray_filt.shape[0] // 2))
+        g0 = int(np.round(np.mean(centre_x_array)) - np.round(fftarray_filt.shape[0] // 2))
         fftarray_filt = np.roll(fftarray_filt, -g0, axis=1)
         fftarray_filt = np.roll(fftarray_filt, -g1, axis=0)
 
