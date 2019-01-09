@@ -308,9 +308,9 @@ class AdaptiveOpticsFunctions():
 
         fftarray_sq = np.real(fftarray * np.conj(fftarray))
 
-        radii = np.linspace(0, OTF_outer_rad, num_segs + 1)
+        radii = np.linspace(0.1 * OTF_outer_rad, OTF_outer_rad, num_segs + 1)
         RMS_metrics = []
-        for ii in range(1, num_segs):
+        for ii in range(0, num_segs - 1):
             ring_mask = self.make_ring_mask(np.shape(image), radii[ii], radii[ii + 1])
             RMS_metric = np.sqrt(np.mean(fftarray_sq[ring_mask != 0]))
             RMS_metrics.append(RMS_metric)
@@ -318,24 +318,31 @@ class AdaptiveOpticsFunctions():
         RMS_metrics = np.asarray(RMS_metrics)
         no_RMS_metrics = np.asarray(range(np.shape(RMS_metrics)[0]))
 
-        metric, intercepts, r_values, p_values, std_errs = stats.linregress(no_RMS_metrics, np.log(RMS_metrics))
-
-        return metric
+        slope, intercept, r_value, p_value, std_err = stats.linregress(no_RMS_metrics, np.log(RMS_metrics))
+        metrics = [slope, intercept, r_value, np.log(p_value), std_err]
+        metrics = np.asarray(metrics)
+        return metrics
 
     def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, num_segs=100, pixel_size=0.1193 * 10 ** -6):
-        metric_measurements = np.zeros(image_stack.shape[0])
+        metrics_measured = []
+        for ii in range(image_stack.shape[0]):
+            print("Measuring metric %i/%i" % (ii + 1, image_stack.shape[0]))
+            metric_measured = self.measure_fourier_metric(image_stack[ii, :, :], num_segs=num_segs)
+            metrics_measured.append(metric_measured)
+        metrics_measured = np.asarray(metrics_measured)
 
-        for ii in range(metric_measurements.shape[0]):
-            print("Measuring metric %i/%i" %(ii+1,metric_measurements.shape[0]))
-            metric_measurements[ii] = self.measure_fourier_metric(image_stack[ii, :, :], num_segs=num_segs, pixel_size=pixel_size)
-
-        print("Metrics measured:", metric_measurements)
+        print("Metrics measured")
 
         print("Fitting metric polynomial")
-        a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metric_measurements, 2)
+        amplitudes_measured = []
+        for ii in range(metric_measured.shape[0]):
+            a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metrics_measured[:, ii], 2)
+            amplitude_measured = (-1 * a_1) / (2 * a_2)
+            amplitudes_measured.append(amplitude_measured)
+        amplitudes_measured = np.asarray(amplitudes_measured)
         print("Calculating amplitude present")
-        amplitude_present = (-1*a_1)/(2*a_2)
-        print("Amplitude calculated = %f" %amplitude_present)
+        amplitude_present = np.mean(amplitudes_measured)
+        print("Amplitude calculated = %f" % amplitude_present)
         return amplitude_present
 
     def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike, num_segs=100,
