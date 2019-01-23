@@ -35,6 +35,22 @@ class AdaptiveOpticsFunctions():
         self.controlMatrix = None
         self.OTF_ring_mask = None
 
+    def set_mask(self,mask):
+        self.mask = mask
+        return
+
+    def set_fft_filter(self,fft_filter):
+        self.fft_filter = fft_filter
+        return
+
+    def set_controlMatrix(self, controlMatrix):
+        self.controlMatrix = controlMatrix
+        return
+
+    def set_OTF_ring_mask(self, OTF_ring_mask):
+        self.OTF_ring_mask = OTF_ring_mask
+        return
+
     def make_mask(self, radius):
         diameter = radius * 2
         self.mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) < radius
