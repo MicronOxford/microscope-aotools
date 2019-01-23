@@ -195,7 +195,7 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def set_controlMatrix(self,controlMatrix):
         self.controlMatrix = controlMatrix
-        aoAlg.controlMatrix = controlMatrix
+        aoAlg.set_controlMatrix(controlMatrix)
         return
 
     @Pyro4.expose
