@@ -22,6 +22,7 @@
 import numpy as np
 from scipy.ndimage.measurements import center_of_mass
 from scipy.signal import tukey, gaussian
+from skimage.filters import threshold_otsu
 import aotools
 import scipy.stats as stats
 from skimage.restoration import unwrap_phase
@@ -94,76 +95,65 @@ class AdaptiveOpticsFunctions():
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
     def make_fft_filter(self, image, region=None):
-        #Convert image to array and float
+        # Convert image to array and float
         data = np.asarray(image)
-        fft_shift_later = False
 
         if region is None:
-            region = int(data.shape[0]/8.0)
+            region = int(data.shape[0]/16)
 
-        #Apply tukey window
+        # Apply tukey window
         fringes = np.fft.fftshift(data)
         tukey_window = tukey(fringes.shape[0], .10, True)
-        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1)*tukey_window.reshape(-1, 1))
+        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
         fringes_tukey = fringes * tukey_window
 
-        #Perform fourier transform
+        # Perform fourier transform
         fftarray = np.fft.fft2(fringes_tukey)
 
-        #Remove center section to allow finding of 1st order point
+        # Remove center section to allow finding of 1st order point
         fftarray = np.fft.fftshift(fftarray)
         find_cent = [int(fftarray.shape[1]/2),int(fftarray.shape[0]/ 2)]
         fftarray[find_cent[1]-region:find_cent[1]+region,find_cent[0]-region:find_cent[0]+region]=0.00001+0j
 
-        #Find approximate position of first order point
+        # Find approximate position of first order point
         test_point = np.argmax(fftarray)
         test_point = [int(test_point % fftarray.shape[1]), int(test_point / fftarray.shape[1])]
 
-        min_dist_to_edge = np.min((test_point[0], test_point[1], abs(test_point[0] - fftarray.shape[0]),
-                                   abs(test_point[1] - fftarray.shape[1])))
-
-        if min_dist_to_edge - min_dist_to_edge % 2 < int(data.shape[0] * (5.0 / 16.0)):
-            fftarray = np.fft.fftshift(fftarray)
-            test_point = np.argmax(fftarray)
-            test_point = [int(test_point % fftarray.shape[1]), int(test_point / fftarray.shape[1])]
-            fft_shift_later = True
-
-        #Find first order point
-        maxpoint = np.zeros(np.shape(test_point),dtype = int)
+        # Find first order point
+        maxpoint = np.zeros(np.shape(test_point), dtype=int)
         maxpoint[:] = test_point[:]
-        window = np.zeros((50,50))
-
-        weight_1D = gaussian(50,50)
-        weight = np.outer(weight_1D,weight_1D.T)
-        weight = weight*(weight>weight[24,49])
+        window = np.zeros((100, 100))
 
         for ii in range(10):
             try:
-                window[:,:] = np.log(abs(fftarray[maxpoint[1]-25:maxpoint[1]+25,maxpoint[0]-25:maxpoint[0]+25]))
-            except ValueError:
-                raise Exception("Interferometer stripes are too fine. Please make them coarser").with_traceback()
-            thresh = np.max(window) - 5
-            CoM = np.zeros((1,2))
-            window[window < thresh] = 0
-            window[:,:] = window[:,:] * weight[:,:]
-            CoM[0,:] = np.round(center_of_mass(window))
-            maxpoint[0] = maxpoint[0] - 25 + int(CoM[0,1])
-            maxpoint[1] = maxpoint[1] - 25 + int(CoM[0,0])
+                window[:, :] = np.log(
+                    abs(fftarray[maxpoint[1] - 50:maxpoint[1] + 50, maxpoint[0] - 50:maxpoint[0] + 50]))
+            except ValueError as e:
+                raise Exception("Interferometer stripes are too fine. Please make them coarser").with_traceback(e)
+            thresh = threshold_otsu(window)
+            binaryIm = window > thresh
+            windowOtsu = window * binaryIm
+            CoM = np.zeros((1, 2))
+            CoM[0, :] = np.round(center_of_mass(windowOtsu))
+            maxpoint[0] = maxpoint[0] - 50 + int(CoM[0, 1])
+            maxpoint[1] = maxpoint[1] - 50 + int(CoM[0, 0])
 
         self.fft_filter = np.zeros(np.shape(fftarray))
         mask_di = int(data.shape[0]*(5.0/16.0))
 
-        x = np.sin(np.linspace(0, np.pi, mask_di))**2
-        fourier_mask = np.outer(x,x.T)
-        y_min = maxpoint[1]-int(np.floor((mask_di/2.0)))
-        y_max = maxpoint[1]+int(np.ceil((mask_di/2.0)))
-        x_min = maxpoint[0]-int(np.floor((mask_di/2.0)))
-        x_max = maxpoint[0]+int(np.ceil((mask_di/2.0)))
+        x_shift = np.min((0, maxpoint[0] - mask_di, abs(maxpoint[0] - fftarray.shape[0]) - mask_di))
+        y_shift = np.min((0, maxpoint[1] - mask_di, abs(maxpoint[1] - fftarray.shape[1]) - mask_di))
 
-        self.fft_filter[y_min:y_max,x_min:x_max] = fourier_mask
-        if fft_shift_later == True:
-            self.fft_filter = np.fft.ifftshift(self.fft_filter)
+        x = np.sin(np.linspace(0, np.pi, mask_di)) ** 2
+        fourier_mask = np.outer(x, x.T)
+        y_min = maxpoint[1] - int(np.floor((mask_di / 2.0))) + y_shift
+        y_max = maxpoint[1] + int(np.ceil((mask_di / 2.0))) + y_shift
+        x_min = maxpoint[0] - int(np.floor((mask_di / 2.0))) + x_shift
+        x_max = maxpoint[0] + int(np.ceil((mask_di / 2.0))) + x_shift
 
+        self.fft_filter[y_min:y_max, x_min:x_max] = fourier_mask
+        self.fft_filter = np.roll(self.fft_filter, -x_shift, axis=1)
+        self.fft_filter = np.roll(self.fft_filter, -y_shift, axis=0)
         return self.fft_filter
 
     def phase_unwrap(self,image):
