@@ -302,14 +302,14 @@ class AdaptiveOpticsDevice(Device):
         return coef
 
     @Pyro4.expose
-    def createcontrolmatrix(self, imageStack, noZernikeModes, pokeSteps, pupil_ac = None, threshold = 0.005):
-        #Ensure an ROI is defined so a masked image is obtained
+    def createcontrolmatrix(self, imageStack, noZernikeModes, pokeSteps, pupil_ac=None, threshold=0.005):
+        # Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        #Ensure the filters has been constructed
+        # Ensure the filters has been constructed
         if np.any(self.mask) is None:
             self.mask = self.make_mask(int(np.round(np.shape(imageStack)[1] / 2)))
         else:
@@ -325,9 +325,62 @@ class AdaptiveOpticsDevice(Device):
         else:
             pass
 
-        self.controlMatrix = aoAlg.create_control_matrix(self, imageStack,
-                                    self.numActuators, noZernikeModes,
-                                    pokeSteps, pupil_ac = pupil_ac, threshold = threshold)
+        noImages, y, x = np.shape(imageStack)
+        numPokeSteps = len(pokeSteps)
+
+        assert x == y
+        edge_mask = np.sqrt(
+            (np.arange(-x / 2.0, x / 2.0) ** 2).reshape((x, 1)) + (np.arange(-x / 2.0, x / 2.0) ** 2)) < ((x / 2.0) - 3)
+        all_zernikeModeAmp = []
+        all_pokeAmps = []
+
+        curr_calc = 0
+        for ac in range(self.numActuators):
+            image_stack_cropped = np.zeros((numPokeSteps, y, x))
+            unwrapped_stack_cropped = np.zeros((numPokeSteps, y, x))
+
+            # Determine if the current actuator is in the pupil
+            if self.pupil_ac[ac] == 1:
+                pokeAc = np.zeros(self.numActuators)
+                zernikeModeAmp_list = []
+
+                for im in range(numPokeSteps):
+                    curr_calc += 1
+                    # Acquire the current poke image
+                    poke_image = imageStack[curr_calc - 1, :, :]
+                    image_stack_cropped[im, :, :] = poke_image
+
+                    # Unwrap the current image
+                    image_unwrap = aoAlg.phase_unwrap(poke_image)
+                    unwrapped_stack_cropped[im, :, :] = image_unwrap
+
+                    # Check the current phase map for discontinuities which can interfere with the Zernike mode measurements
+                    diff_image = abs(np.diff(np.diff(image_unwrap, axis=1), axis=0)) * edge_mask[:-1, :-1]
+                    no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
+                    if no_discontinuities > (x * y) / 1000.0:
+                        print("Unwrap image %d/%d contained discontinuites" % (curr_calc, noImages))
+                        print("Zernike modes %d/%d not calculated" % (curr_calc, noImages))
+                    else:
+                        pokeAc[ac] = pokeSteps[im]
+                        all_pokeAmps.append(pokeAc.tolist())
+                        print("Calculating Zernike modes %d/%d..." % (curr_calc, noImages))
+
+                    curr_amps = aoAlg.get_zernike_modes(image_unwrap, noZernikeModes)
+                    zernikeModeAmp_list.append(curr_amps)
+                    all_zernikeModeAmp.append(curr_amps)
+            np.save("image_stack_cropped_ac_%i" % ac, image_stack_cropped)
+            np.save("unwrap_stack_cropped_ac_%i" % ac, unwrapped_stack_cropped)
+
+        all_zernikeModeAmp = np.asarray(all_zernikeModeAmp)
+        all_pokeAmps = np.asarray(all_pokeAmps)
+
+        self._logger.info("Computing Control Matrix")
+        self.controlMatrix = aoAlg.create_control_matrix(zernikeAmps=all_zernikeModeAmp,
+                                                         pokeSteps=all_pokeAmps,
+                                                         numActuators=self.numActuators,
+                                                         pupil_ac=self.pupil_ac,
+                                                         threshold=threshold)
+        self._logger.info("Control Matrix computed")
         return self.controlMatrix
 
     @Pyro4.expose
