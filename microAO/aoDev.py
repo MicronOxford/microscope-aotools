@@ -435,7 +435,7 @@ class AdaptiveOpticsDevice(Device):
                     image_stack_cropped[im, :, :] = poke_image
 
                     # Unwrap the current image
-                    image_unwrap = aoAlg.phaseunwrap(poke_image)
+                    image_unwrap = aoAlg.phase_unwrap(poke_image)
                     unwrapped_stack_cropped[im, :, :] = image_unwrap
 
                     # Check the current phase map for discontinuities which can interfere with the Zernike mode measurements
