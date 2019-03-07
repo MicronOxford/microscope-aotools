@@ -367,7 +367,7 @@ class AdaptiveOpticsDevice(Device):
         return rms_error
 
     @Pyro4.expose
-    def calibrate(self, numPokeSteps = 5, threshold = 0.005):
+    def calibrate(self, numPokeSteps = 5, noZernikeModes = 69, threshold = 0.005):
         self.wavefront_camera.set_exposure_time(0.1)
         #Ensure an ROI is defined so a masked image is obtained
         try:
@@ -376,8 +376,8 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("No region of interest selected. Please select a region of interest")
 
         test_image = np.asarray(self.acquire())
-        (width, height) = np.shape(test_image)
-        
+        (y, x) = np.shape(test_image)
+
         #Ensure the filters has been constructed
         if np.any(self.mask) is None:
             self._logger.info("Constructing mask")
@@ -398,43 +398,78 @@ class AdaptiveOpticsDevice(Device):
         pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
         noImages = numPokeSteps*(np.shape(np.where(self.pupil_ac == 1))[1])
 
-        image_stack_cropped = np.zeros((noImages,self.roi[2]*2,self.roi[2]*2))
+        assert x == y
+        edge_mask = np.sqrt(
+            (np.arange(-x / 2.0, x / 2.0) ** 2).reshape((x, 1)) + (np.arange(-x / 2.0, x / 2.0) ** 2)) < ((x / 2.0) - 3)
+        all_zernikeModeAmp = []
+        all_pokeAmps = []
 
         actuator_values = np.zeros((noImages,nzernike)) + 0.5
         for ii in range(nzernike):
             for jj in range(numPokeSteps):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
 
+        curr_calc = 0
         for ac in range(self.numActuators):
-            for im in range(numPokeSteps):
-                curr_calc = (ac * numPokeSteps) + im + 1
-                self._logger.info("Frame %i/%i captured" %(curr_calc, noImages))
-                try:
-                    self.send(actuator_values[(curr_calc-1),:])
-                except:
-                    self._logger.info("Actuator values being sent:")
-                    self._logger.info(actuator_values[(curr_calc-1),:])
-                    self._logger.info("Shape of actuator vector:")
-                    self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
-                poke_image = self.acquire()
-                image_stack_cropped[curr_calc-1,:,:] = poke_image
+            image_stack_cropped = np.zeros((numPokeSteps, y, x))
+            unwrapped_stack_cropped = np.zeros((numPokeSteps, y, x))
 
+            # Determine if the current actuator is in the pupil
+            if self.pupil_ac[ac] == 1:
+                pokeAc = np.zeros(self.numActuators)
+                zernikeModeAmp_list = []
+
+                for im in range(numPokeSteps):
+                    curr_calc += 1
+                    try:
+                        self.send(actuator_values[(curr_calc-1),:])
+                    except:
+                        self._logger.info("Actuator values being sent:")
+                        self._logger.info(actuator_values[(curr_calc-1),:])
+                        self._logger.info("Shape of actuator vector:")
+                        self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
+                    self._logger.info("Frame %i/%i captured" % (curr_calc, noImages))
+
+                    # Acquire the current poke image
+                    poke_image = self.acquire()
+                    image_stack_cropped[im, :, :] = poke_image
+
+                    # Unwrap the current image
+                    image_unwrap = aoAlg.phaseunwrap(poke_image)
+                    unwrapped_stack_cropped[im, :, :] = image_unwrap
+
+                    # Check the current phase map for discontinuities which can interfere with the Zernike mode measurements
+                    diff_image = abs(np.diff(np.diff(image_unwrap, axis=1), axis=0)) * edge_mask[:-1, :-1]
+                    no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
+                    if no_discontinuities > (x * y) / 1000.0:
+                        print("Unwrap image %d/%d contained discontinuites" % (curr_calc, noImages))
+                        print("Zernike modes %d/%d not calculated" % (curr_calc, noImages))
+                    else:
+                        pokeAc[ac] = pokeSteps[im]
+                        all_pokeAmps.append(pokeAc.tolist())
+                        print("Calculating Zernike modes %d/%d..." % (curr_calc, noImages))
+
+                    curr_amps = aoAlg.get_zernike_modes(image_unwrap, noZernikeModes)
+                    zernikeModeAmp_list.append(curr_amps)
+                    all_zernikeModeAmp.append(curr_amps)
+            np.save("image_stack_cropped_ac_%i" % ac, image_stack_cropped)
+            np.save("unwrap_stack_cropped_ac_%i" % ac, unwrapped_stack_cropped)
+
+        all_zernikeModeAmp = np.asarray(all_zernikeModeAmp)
+        all_pokeAmps = np.asarray(all_pokeAmps)
         self.reset()
 
-        np.save("image_stack_cropped", image_stack_cropped)
-
         self._logger.info("Computing Control Matrix")
-        self.controlMatrix = aoAlg.create_control_matrix(imageStack = image_stack_cropped,
+        self.controlMatrix = aoAlg.create_control_matrix(zernikeAmps = all_zernikeModeAmp,
+                                                         pokeSteps = all_pokeAmps,
                                                          numActuators = self.numActuators,
-                                                         noZernikeModes = 69,
-                                                         pokeSteps = pokeSteps,
                                                          pupil_ac = self.pupil_ac,
                                                          threshold = threshold)
         self._logger.info("Control Matrix computed")
         np.save("control_matrix", self.controlMatrix)
 
-        #Obtain actuator positions to correct for system aberrations
-        #Ignore piston, tip, tilt and defocus
+        # Obtain actuator positions to correct for system aberrations
+        # Ignore piston, tip, tilt and defocus
         z_modes_ignore = np.asarray(range(self.numActuators) > 3)
         self.flat_actuators_sys = self.flatten_phase(iterations=25, z_modes_ignore=z_modes_ignore)
 
