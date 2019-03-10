@@ -358,12 +358,12 @@ class AdaptiveOpticsDevice(Device):
                     diff_image = abs(np.diff(np.diff(image_unwrap, axis=1), axis=0)) * edge_mask[:-1, :-1]
                     no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
                     if no_discontinuities > (x * y) / 1000.0:
-                        print("Unwrap image %d/%d contained discontinuites" % (curr_calc, noImages))
-                        print("Zernike modes %d/%d not calculated" % (curr_calc, noImages))
+                        self._logger.info("Unwrap image %d/%d contained discontinuites" % (curr_calc, noImages))
+                        self._logger.info("Zernike modes %d/%d not calculated" % (curr_calc, noImages))
                     else:
                         pokeAc[ac] = pokeSteps[im]
                         all_pokeAmps.append(pokeAc.tolist())
-                        print("Calculating Zernike modes %d/%d..." % (curr_calc, noImages))
+                        self._logger.info("Calculating Zernike modes %d/%d..." % (curr_calc, noImages))
 
                     curr_amps = aoAlg.get_zernike_modes(image_unwrap, noZernikeModes)
                     zernikeModeAmp_list.append(curr_amps)
@@ -495,21 +495,25 @@ class AdaptiveOpticsDevice(Device):
                     diff_image = abs(np.diff(np.diff(image_unwrap, axis=1), axis=0)) * edge_mask[:-1, :-1]
                     no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
                     if no_discontinuities > (x * y) / 1000.0:
-                        print("Unwrap image %d/%d contained discontinuites" % (curr_calc, noImages))
-                        print("Zernike modes %d/%d not calculated" % (curr_calc, noImages))
+                        self._logger.info("Unwrap image %d/%d contained discontinuites" % (curr_calc, noImages))
+                        self._logger.info("Zernike modes %d/%d not calculated" % (curr_calc, noImages))
                     else:
                         pokeAc[ac] = pokeSteps[im]
                         all_pokeAmps.append(pokeAc.tolist())
-                        print("Calculating Zernike modes %d/%d..." % (curr_calc, noImages))
+                        self._logger.info("Calculating Zernike modes %d/%d..." % (curr_calc, noImages))
 
                     curr_amps = aoAlg.get_zernike_modes(image_unwrap, noZernikeModes)
                     zernikeModeAmp_list.append(curr_amps)
                     all_zernikeModeAmp.append(curr_amps)
+            zernikeModeAmp = np.asarray(zernikeModeAmp_list)
             np.save("image_stack_cropped_ac_%i" % ac, image_stack_cropped)
             np.save("unwrap_stack_cropped_ac_%i" % ac, unwrapped_stack_cropped)
+            np.save("zernikeModeAmp_ac_%i" % ac, zernikeModeAmp)
 
         all_zernikeModeAmp = np.asarray(all_zernikeModeAmp)
         all_pokeAmps = np.asarray(all_pokeAmps)
+        np.save("all_zernikeModeAmp", all_zernikeModeAmp)
+        np.save("all_pokeAmps", all_pokeAmps)
         self.reset()
 
         self._logger.info("Computing Control Matrix")
