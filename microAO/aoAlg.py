@@ -22,6 +22,7 @@
 import numpy as np
 from scipy.ndimage.measurements import center_of_mass
 from scipy.signal import tukey, gaussian
+from skimage.filters import threshold_otsu
 import aotools
 import scipy.stats as stats
 from skimage.restoration import unwrap_phase
@@ -110,76 +111,65 @@ class AdaptiveOpticsFunctions():
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
     def make_fft_filter(self, image, region=None):
-        #Convert image to array and float
+        # Convert image to array and float
         data = np.asarray(image)
-        fft_shift_later = False
 
         if region is None:
-            region = int(data.shape[0]/8.0)
+            region = int(data.shape[0]/16)
 
-        #Apply tukey window
+        # Apply tukey window
         fringes = np.fft.fftshift(data)
         tukey_window = tukey(fringes.shape[0], .10, True)
-        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1)*tukey_window.reshape(-1, 1))
+        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
         fringes_tukey = fringes * tukey_window
 
-        #Perform fourier transform
+        # Perform fourier transform
         fftarray = np.fft.fft2(fringes_tukey)
 
-        #Remove center section to allow finding of 1st order point
+        # Remove center section to allow finding of 1st order point
         fftarray = np.fft.fftshift(fftarray)
         find_cent = [int(fftarray.shape[1]/2),int(fftarray.shape[0]/ 2)]
         fftarray[find_cent[1]-region:find_cent[1]+region,find_cent[0]-region:find_cent[0]+region]=0.00001+0j
 
-        #Find approximate position of first order point
+        # Find approximate position of first order point
         test_point = np.argmax(fftarray)
         test_point = [int(test_point % fftarray.shape[1]), int(test_point / fftarray.shape[1])]
 
-        min_dist_to_edge = np.min((test_point[0], test_point[1], abs(test_point[0] - fftarray.shape[0]),
-                                   abs(test_point[1] - fftarray.shape[1])))
-
-        if min_dist_to_edge - min_dist_to_edge % 2 < int(data.shape[0] * (5.0 / 16.0)):
-            fftarray = np.fft.fftshift(fftarray)
-            test_point = np.argmax(fftarray)
-            test_point = [int(test_point % fftarray.shape[1]), int(test_point / fftarray.shape[1])]
-            fft_shift_later = True
-
-        #Find first order point
-        maxpoint = np.zeros(np.shape(test_point),dtype = int)
+        # Find first order point
+        maxpoint = np.zeros(np.shape(test_point), dtype=int)
         maxpoint[:] = test_point[:]
-        window = np.zeros((50,50))
-
-        weight_1D = gaussian(50,50)
-        weight = np.outer(weight_1D,weight_1D.T)
-        weight = weight*(weight>weight[24,49])
+        window = np.zeros((100, 100))
 
         for ii in range(10):
             try:
-                window[:,:] = np.log(abs(fftarray[maxpoint[1]-25:maxpoint[1]+25,maxpoint[0]-25:maxpoint[0]+25]))
-            except ValueError:
-                raise Exception("Interferometer stripes are too fine. Please make them coarser").with_traceback()
-            thresh = np.max(window) - 5
-            CoM = np.zeros((1,2))
-            window[window < thresh] = 0
-            window[:,:] = window[:,:] * weight[:,:]
-            CoM[0,:] = np.round(center_of_mass(window))
-            maxpoint[0] = maxpoint[0] - 25 + int(CoM[0,1])
-            maxpoint[1] = maxpoint[1] - 25 + int(CoM[0,0])
+                window[:, :] = np.log(
+                    abs(fftarray[maxpoint[1] - 50:maxpoint[1] + 50, maxpoint[0] - 50:maxpoint[0] + 50]))
+            except ValueError as e:
+                raise Exception("Interferometer stripes are too fine. Please make them coarser").with_traceback(e)
+            thresh = threshold_otsu(window)
+            binaryIm = window > thresh
+            windowOtsu = window * binaryIm
+            CoM = np.zeros((1, 2))
+            CoM[0, :] = np.round(center_of_mass(windowOtsu))
+            maxpoint[0] = maxpoint[0] - 50 + int(CoM[0, 1])
+            maxpoint[1] = maxpoint[1] - 50 + int(CoM[0, 0])
 
         self.fft_filter = np.zeros(np.shape(fftarray))
         mask_di = int(data.shape[0]*(5.0/16.0))
 
-        x = np.sin(np.linspace(0, np.pi, mask_di))**2
-        fourier_mask = np.outer(x,x.T)
-        y_min = maxpoint[1]-int(np.floor((mask_di/2.0)))
-        y_max = maxpoint[1]+int(np.ceil((mask_di/2.0)))
-        x_min = maxpoint[0]-int(np.floor((mask_di/2.0)))
-        x_max = maxpoint[0]+int(np.ceil((mask_di/2.0)))
+        x_shift = np.min((0, maxpoint[0] - mask_di, abs(maxpoint[0] - fftarray.shape[0]) - mask_di))
+        y_shift = np.min((0, maxpoint[1] - mask_di, abs(maxpoint[1] - fftarray.shape[1]) - mask_di))
 
-        self.fft_filter[y_min:y_max,x_min:x_max] = fourier_mask
-        if fft_shift_later == True:
-            self.fft_filter = np.fft.ifftshift(self.fft_filter)
+        x = np.sin(np.linspace(0, np.pi, mask_di)) ** 2
+        fourier_mask = np.outer(x, x.T)
+        y_min = maxpoint[1] - int(np.floor((mask_di / 2.0))) + y_shift
+        y_max = maxpoint[1] + int(np.ceil((mask_di / 2.0))) + y_shift
+        x_min = maxpoint[0] - int(np.floor((mask_di / 2.0))) + x_shift
+        x_max = maxpoint[0] + int(np.ceil((mask_di / 2.0))) + x_shift
 
+        self.fft_filter[y_min:y_max, x_min:x_max] = fourier_mask
+        self.fft_filter = np.roll(self.fft_filter, -x_shift, axis=1)
+        self.fft_filter = np.roll(self.fft_filter, -y_shift, axis=0)
         return self.fft_filter
 
     def phase_unwrap(self,image):
@@ -243,9 +233,11 @@ class AdaptiveOpticsFunctions():
         coef = np.asarray(zcoeffs_dbl)
         return coef
 
-    def create_control_matrix(self, imageStack, numActuators, noZernikeModes, pokeSteps, pupil_ac = None, threshold = 0.005):
+    def create_control_matrix(self, zernikeAmps, pokeSteps, numActuators, pupil_ac=None, threshold=0.005):
         if np.any(pupil_ac) == None:
             pupil_ac = np.ones(numActuators)
+
+        noZernikeModes = zernikeAmps.shape[1]
 
         slopes = np.zeros(noZernikeModes)
         intercepts = np.zeros(noZernikeModes)
@@ -253,66 +245,33 @@ class AdaptiveOpticsFunctions():
         p_values = np.zeros(noZernikeModes)
         std_errs = np.zeros(noZernikeModes)
 
-        # Define variables
-        try:
-            assert type(imageStack) is np.ndarray
-        except:
-            print("Expected numpy.ndarray input data type, got %s" %type(imageStack))
-        [noImages, x, y] = np.shape(imageStack)
-        numPokeSteps = len(pokeSteps)
+        C_mat = np.zeros((noZernikeModes, numActuators))
+        offsets = np.zeros((noZernikeModes, numActuators))
+        P_tests = np.zeros((noZernikeModes, numActuators))
 
-        C_mat = np.zeros((noZernikeModes,numActuators))
-        all_zernikeModeAmp = np.ones((noImages,noZernikeModes))
-        offsets = np.zeros((noZernikeModes,numActuators))
-        P_tests = np.zeros((noZernikeModes,numActuators))
-
-        assert x == y
-        edge_mask = np.sqrt((np.arange(-x/2.0,x/2.0)**2).reshape((x,1)) + (np.arange(-x/2.0,x/2.0)**2)) < ((x/2.0)-3)
-
-        # Here the each image in the image stack (read in as np.array), centre and diameter should be passed to the unwrap
-        # function to obtain the Zernike modes for each one. For the moment a set of random Zernike modes are generated.
         for ii in range(numActuators):
             if pupil_ac[ii] == 1:
-                pokeSteps_trimmed_list = []
-                zernikeModeAmp_list = []
-                #Get the amplitudes of each Zernike mode for the poke range of one actuator
-                for jj in range(numPokeSteps):
-                    curr_calc = (ii * numPokeSteps) + jj + 1
-                    image_unwrap = self.phase_unwrap(imageStack[((ii * numPokeSteps) + jj),:,:])
-                    diff_image = abs(np.diff(np.diff(image_unwrap,axis=1),axis=0)) * edge_mask[:-1,:-1]
-                    no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
-                    if no_discontinuities > (x*y)/1000.0:
-                        print("Unwrap image %d/%d contained discontinuites" %(curr_calc, noImages))
-                        print("Zernike modes %d/%d not calculated" %(curr_calc, noImages))
-                    else:
-                        pokeSteps_trimmed_list.append(pokeSteps[jj])
-                        print("Calculating Zernike modes %d/%d..." %(curr_calc, noImages))
-                        curr_amps = self.get_zernike_modes(image_unwrap, noZernikeModes)
-                        zernikeModeAmp_list.append(curr_amps)
-                        all_zernikeModeAmp[(curr_calc-1),:] = curr_amps
+                pokeSteps_trimmed = pokeSteps[np.where(pokeSteps[:, ii] != 0)[0], ii]
+                zernikeModeAmp = zernikeAmps[np.where(pokeSteps[:, ii] != 0)[0], :]
 
-                pokeSteps_trimmed = np.asarray(pokeSteps_trimmed_list)
-                zernikeModeAmp = np.asarray(zernikeModeAmp_list)
-
-                #Check that the influence slope for each actuator can actually be calculated
+                # Check that the influence slope for each actuator can actually be calculated
                 if len(pokeSteps_trimmed) < 2:
                     raise Exception("Not enough Zernike mode values to calculate slope for actuator %i. "
-                          "Control matrix calculation will fail" %(ii+1))
+                                    "Control matrix calculation will fail" % (ii + 1))
                     break
 
-
-                #Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
+                # Fit a linear regression to get the relationship between actuator position and Zernike mode amplitude
                 for kk in range(noZernikeModes):
                     try:
-                        slopes[kk],intercepts[kk],r_values[kk],p_values[kk],std_errs[kk] = \
-                            stats.linregress(pokeSteps_trimmed,zernikeModeAmp[:,kk])
+                        slopes[kk], intercepts[kk], r_values[kk], p_values[kk], std_errs[kk] = \
+                            stats.linregress(pokeSteps_trimmed, zernikeModeAmp[:, kk])
                     except Exception as e:
                         print(e)
 
-                #Input obtained slopes as the entries in the control matrix
-                C_mat[:,ii] = slopes[:]
-                offsets[:,ii] = intercepts[:]
-                P_tests[:,ii] = p_values[:]
+                # Input obtained slopes as the entries in the control matrix
+                C_mat[:, ii] = slopes[:]
+                offsets[:, ii] = intercepts[:]
+                P_tests[:, ii] = p_values[:]
             else:
                 print("Actuator %d is not in the pupil and therefore skipped" % (ii))
         print("Computing Control Matrix")

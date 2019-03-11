@@ -58,10 +58,10 @@ class TestAOFunctions(unittest.TestCase):
     gauss = np.outer(x,x.T)
     gauss = gauss*(gauss>(np.max(x)*np.min(x)))
 
-    fft_filter[(self.radius-self.true_y_freq-(gauss_dim/2)):
-               (self.radius-self.true_y_freq+(gauss_dim/2)),
-               (self.radius-self.true_x_freq-(gauss_dim/2)):
-               (self.radius-self.true_x_freq+(gauss_dim/2))] = gauss
+    fft_filter[(self.radius-self.true_y_freq-int(gauss_dim/2)):
+               (self.radius-self.true_y_freq+int(gauss_dim/2)),
+               (self.radius-self.true_x_freq-int(gauss_dim/2)):
+               (self.radius-self.true_x_freq+int(gauss_dim/2))] = gauss
     return fft_filter
 
   def setUp(self):
@@ -76,7 +76,7 @@ class TestAOFunctions(unittest.TestCase):
     self.true_mask = self._construct_true_mask()
     self.test_inter = self._construct_interferogram()
     self.true_fft_filter = self._construct_true_fft_filter()
-
+    self.true_control_matrix = np.diag(np.ones(self.nzernike))
     self.AO_func = AO.AdaptiveOpticsFunctions()
     self.AO_mask = self.AO_func.make_mask(self.radius)
     self.AO_fft_filter = self.AO_func.make_fft_filter(image = self.test_inter, region=None)
@@ -139,39 +139,30 @@ class TestAOFunctions(unittest.TestCase):
     np.testing.assert_almost_equal(z_var_diff, 0, decimal=5)
 
   def test_createcontrolmatrix(self):
-    test_stack = np.zeros((self.nzernike*self.num_poke_steps,self.test_inter.shape[0],self.test_inter.shape[1]),
-                          dtype=complex)
-    true_control_matrix = np.diag(np.ones(self.nzernike))
-
-    count = 0
     pokeSteps = np.linspace(0.05,0.95,self.num_poke_steps)
-    for ii in range(self.nzernike):
+
+    allTestZernikeAmps = []
+    allPokeSteps = []
+    for ii in range(self.planned_n_actuators):
       for jj in pokeSteps:
+        currPokeAmps = np.zeros(self.planned_n_actuators)
+        currPokeAmps[ii] = jj
         zcoeffs_in = np.zeros(self.nzernike)
         zcoeffs_in[ii] = 1*jj
-        aberration_angle = aotools.phaseFromZernikes(zcoeffs_in, (self.radius*2))
-        aberration_phase = (1.0/2.0) * (np.cos(aberration_angle) + (1j * np.sin(aberration_angle)))
-        test_stack[count,:,:] = self.test_inter * aberration_phase
-        print "Test image %d\%d constructed" %(int(count+1),int(self.nzernike*10))
-        count += 1
-        np.save("test_stack", test_stack)
 
-    test_control_matrix = self.AO_func.create_control_matrix(imageStack=test_stack,
+        allTestZernikeAmps.append(zcoeffs_in)
+        allPokeSteps.append(currPokeAmps)
+
+    allTestZernikeAmps = np.asarray(allTestZernikeAmps)
+    allPokeSteps = np.asarray(allPokeSteps)
+
+    test_control_matrix = self.AO_func.create_control_matrix(zernikeAmps=allTestZernikeAmps,
+                                                             pokeSteps=allPokeSteps,
                                                              numActuators=self.planned_n_actuators,
-                                                             noZernikeModes=self.nzernike,
-                                                             pokeSteps = pokeSteps,
                                                              pupil_ac = None,
                                                              threshold = 0.005)
-    max_ind = []
-    for ii in range(self.nzernike):
-      max_ind.append(np.where(test_control_matrix[:,ii] ==
-                              np.max(test_control_matrix[:,ii]))[0][0])
-    np.testing.assert_equal(max_ind, range(self.nzernike))
 
-    CM_diff = test_control_matrix - true_control_matrix
-    CM_var_diff = np.var(np.diag(CM_diff))
-
-    np.testing.assert_almost_equal(CM_var_diff, 0, decimal=3)
+    np.testing.assert_array_equal(test_control_matrix,self.true_control_matrix)
 
   def test_ac_pos_from_zernike(self):
     pass
