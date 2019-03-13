@@ -326,23 +326,17 @@ class AdaptiveOpticsFunctions():
     def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, num_segs=100, pixel_size=0.1193 * 10 ** -6):
         metrics_measured = []
         for ii in range(image_stack.shape[0]):
-            print("Measuring metric %i/%i" % (ii + 1, image_stack.shape[0]))
             metric_measured = self.measure_fourier_metric(image_stack[ii, :, :], num_segs=num_segs)
             metrics_measured.append(metric_measured)
         metrics_measured = np.asarray(metrics_measured)
 
-        print("Metrics measured")
-
-        print("Fitting metric polynomial")
         amplitudes_measured = []
         for ii in range(metric_measured.shape[0]):
             a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metrics_measured[:, ii], 2)
             amplitude_measured = (-1 * a_1) / (2 * a_2)
             amplitudes_measured.append(amplitude_measured)
         amplitudes_measured = np.asarray(amplitudes_measured)
-        print("Calculating amplitude present")
         amplitude_present = np.mean(amplitudes_measured)
-        print("Amplitude calculated = %f" % amplitude_present)
         return amplitude_present
 
     def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike, num_segs=100,
@@ -353,7 +347,6 @@ class AdaptiveOpticsFunctions():
         for ii in range(nollZernike.shape[0]):
             image_stack = full_image_stack[ii * numMes:(ii + 1) * numMes,:,:]
             zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]-1]
-            print("Calculating Zernike amplitude %i/%i" %(ii+1, nollZernike.shape[0]))
             amp = self.find_zernike_amp_sensorless(image_stack, zernike_applied, num_segs=num_segs, pixel_size=pixel_size)
             coef[nollZernike[ii]-1] = amp
 
