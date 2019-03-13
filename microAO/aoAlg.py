@@ -23,10 +23,14 @@ import numpy as np
 from scipy.ndimage.measurements import center_of_mass
 from scipy.signal import tukey, gaussian
 from skimage.filters import threshold_otsu
+from scipy.optimize import curve_fit
 import aotools
 import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
+
+def gaussian_funcion(x, a, b, c, d):
+    return a + (b - a) * np.exp((-(x - c) ** 2) / (2 * d ** 2))
 
 class AdaptiveOpticsFunctions():
 
@@ -309,7 +313,8 @@ class AdaptiveOpticsFunctions():
         ring_mask = outer_mask * inner_mask
         return ring_mask
 
-    def measure_fourier_metric(self, image, num_segs=100, wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
+    def measure_fourier_metric(self, image, threshold, wavelength=500 * 10 ** -9, NA=1.1,
+                               pixel_size=0.1193 * 10 ** -6):
         ray_crit_dist = (1.22 * wavelength) / (2 * NA)
         ray_crit_freq = 1 / ray_crit_dist
         max_freq = 1 / (2 * pixel_size)
@@ -322,55 +327,59 @@ class AdaptiveOpticsFunctions():
         im_tukey = im_shift * tukey_window
         fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
 
-        fftarray_sq = np.real(fftarray * np.conj(fftarray))
+        fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
-        radii = np.linspace(0.1 * OTF_outer_rad, OTF_outer_rad, num_segs + 1)
-        RMS_metrics = []
-        for ii in range(0, num_segs - 1):
-            ring_mask = self.make_ring_mask(np.shape(image), radii[ii], radii[ii + 1])
-            RMS_metric = np.sqrt(np.mean(fftarray_sq[ring_mask != 0]))
-            RMS_metrics.append(RMS_metric)
+        ring_mask = self.make_ring_mask(np.shape(image),0.1 * OTF_outer_rad, OTF_outer_rad)
+        freq_above_noise = (fftarray_sq_log > threshold) * ring_mask
+        metric = np.count_nonzero(freq_above_noise)
+        return metric
 
-        RMS_metrics = np.asarray(RMS_metrics)
-        no_RMS_metrics = np.asarray(range(np.shape(RMS_metrics)[0]))
+    def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes):
+        all_thresh = []
+        radius = int(image_stack.shape[1]/2)
+        diameter = image_stack.shape[1]
+        inner_mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) > 0.05*radius
+        tukey_window = tukey(image_stack.shape[1], .10, True)
+        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
+        for ii in range(image_stack.shape[0]):
+            im_shift = np.fft.fftshift(np.fft.fft2(image_stack[ii, :, :]))
+            im_tukey = im_shift * tukey_window
+            fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
+            fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
+            ft_for_otsu = fftarray_sq_log * inner_mask
+            thresh = threshold_otsu(ft_for_otsu)
+            all_thresh.append(thresh)
+        all_thresh = np.asarray(all_thresh)
+        mean_thresh = np.mean(all_thresh)
 
-        slope, intercept, r_value, p_value, std_err = stats.linregress(no_RMS_metrics, np.log(RMS_metrics))
-        metrics = [slope, intercept, r_value, np.log(p_value), std_err]
-        metrics = np.asarray(metrics)
-        return metrics
 
-    def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, num_segs=100, pixel_size=0.1193 * 10 ** -6):
         metrics_measured = []
         for ii in range(image_stack.shape[0]):
             print("Measuring metric %i/%i" % (ii + 1, image_stack.shape[0]))
-            metric_measured = self.measure_fourier_metric(image_stack[ii, :, :], num_segs=num_segs)
+            metric_measured = self.measure_fourier_metric(image_stack[ii, :, :], threshold=mean_thresh)
             metrics_measured.append(metric_measured)
         metrics_measured = np.asarray(metrics_measured)
 
         print("Metrics measured")
 
         print("Fitting metric polynomial")
-        amplitudes_measured = []
-        for ii in range(metric_measured.shape[0]):
-            a_2, a_1, a_0 = np.polyfit(zernike_amplitudes, metrics_measured[:, ii], 2)
-            amplitude_measured = (-1 * a_1) / (2 * a_2)
-            amplitudes_measured.append(amplitude_measured)
-        amplitudes_measured = np.asarray(amplitudes_measured)
+        [offset, normalising, mean, std_dev], pcov = curve_fit(gaussian_funcion, zernike_amplitudes, metrics_measured)
         print("Calculating amplitude present")
-        amplitude_present = np.mean(amplitudes_measured)
+        amplitude_present = mean
         print("Amplitude calculated = %f" % amplitude_present)
         return amplitude_present
 
-    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike, num_segs=100,
-                                     pixel_size=0.1193 * 10 ** -6):
-        numMes = full_zernike_applied.shape[0]/nollZernike.shape[0]
-
-        coef = np.zeros(full_zernike_applied.shape[1])
-        for ii in range(nollZernike.shape[0]):
-            image_stack = full_image_stack[ii * numMes:(ii + 1) * numMes,:,:]
-            zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]-1]
-            print("Calculating Zernike amplitude %i/%i" %(ii+1, nollZernike.shape[0]))
-            amp = self.find_zernike_amp_sensorless(image_stack, zernike_applied, num_segs=num_segs, pixel_size=pixel_size)
-            coef[nollZernike[ii]-1] = amp
-
-        return coef
+# Deprecated, need to fix
+#    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike, num_segs=100,
+#                                     pixel_size=0.1193 * 10 ** -6):
+#        numMes = full_zernike_applied.shape[0]/nollZernike.shape[0]
+#
+#        coef = np.zeros(full_zernike_applied.shape[1])
+#        for ii in range(nollZernike.shape[0]):
+#            image_stack = full_image_stack[ii * numMes:(ii + 1) * numMes,:,:]
+#            zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]-1]
+#            print("Calculating Zernike amplitude %i/%i" %(ii+1, nollZernike.shape[0]))
+#            amp = self.find_zernike_amp_sensorless(image_stack, zernike_applied, num_segs=num_segs, pixel_size=pixel_size)
+#            coef[nollZernike[ii]-1] = amp
+#
+#        return coef
