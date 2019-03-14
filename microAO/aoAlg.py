@@ -342,8 +342,7 @@ class AdaptiveOpticsFunctions():
         tukey_window = tukey(image_stack.shape[1], .10, True)
         tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
         for ii in range(image_stack.shape[0]):
-            im_shift = np.fft.fftshift(np.fft.fft2(image_stack[ii, :, :]))
-            im_tukey = im_shift * tukey_window
+            im_tukey = np.fft.fftshift(np.fft.fftshift(image_stack[ii, :, :]) * tukey_window)
             fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
             fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
             ft_for_otsu = fftarray_sq_log * inner_mask
@@ -365,7 +364,7 @@ class AdaptiveOpticsFunctions():
         print("Fitting metric polynomial")
         [offset, normalising, mean, std_dev], pcov = curve_fit(gaussian_funcion, zernike_amplitudes, metrics_measured)
         print("Calculating amplitude present")
-        amplitude_present = mean
+        amplitude_present = -1.0 * mean
         print("Amplitude calculated = %f" % amplitude_present)
         return amplitude_present
 
