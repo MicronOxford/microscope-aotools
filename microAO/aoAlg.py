@@ -347,7 +347,7 @@ class AdaptiveOpticsFunctions():
             fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
             ft_for_otsu = fftarray_sq_log * inner_mask
             thresh = threshold_otsu(ft_for_otsu)
-            all_thresh.append(thresh)
+            all_thresh.append(thresh*1.1)
         all_thresh = np.asarray(all_thresh)
         mean_thresh = np.mean(all_thresh)
 
@@ -362,8 +362,12 @@ class AdaptiveOpticsFunctions():
         print("Metrics measured")
 
         print("Fitting metric polynomial")
-        [offset, normalising, mean, std_dev], pcov = curve_fit(gaussian_funcion, zernike_amplitudes, metrics_measured)
-        print("Calculating amplitude present")
+        try:
+            [offset, normalising, mean, std_dev], pcov = curve_fit(gaussian_funcion, zernike_amplitudes, metrics_measured)
+            print("Calculating amplitude present")
+        except RuntimeError:
+            print("Could not accurately fit metric polynomial.")
+            mean = 0
         amplitude_present = -1.0 * mean
         print("Amplitude calculated = %f" % amplitude_present)
         return amplitude_present
