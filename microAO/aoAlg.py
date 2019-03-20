@@ -161,8 +161,8 @@ class AdaptiveOpticsFunctions():
         self.fft_filter = np.zeros(np.shape(fftarray))
         mask_di = int(data.shape[0]*(5.0/16.0))
 
-        x_shift = np.min((0, maxpoint[0] - mask_di, abs(maxpoint[0] - fftarray.shape[0]) - mask_di))
-        y_shift = np.min((0, maxpoint[1] - mask_di, abs(maxpoint[1] - fftarray.shape[1]) - mask_di))
+        x_shift = np.min((0, abs(maxpoint[0] - mask_di), abs(maxpoint[0] - fftarray.shape[0]) - mask_di))
+        y_shift = np.min((0, abs(maxpoint[1] - mask_di), abs(maxpoint[1] - fftarray.shape[1]) - mask_di))
 
         x = np.sin(np.linspace(0, np.pi, mask_di)) ** 2
         fourier_mask = np.outer(x, x.T)
@@ -224,7 +224,7 @@ class AdaptiveOpticsFunctions():
             resize_dim -= 1
 
         if resize_dim < original_dim/resize_dim:
-            resize_dim = original_dim/resize_dim
+            resize_dim = int(np.round(original_dim/resize_dim))
 
         image_resize = self.bin_ndarray(image_unwrap, new_shape=(resize_dim,resize_dim), operation='mean')
 
