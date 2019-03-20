@@ -313,7 +313,7 @@ class AdaptiveOpticsFunctions():
         ring_mask = outer_mask * inner_mask
         return ring_mask
 
-    def measure_fourier_metric(self, image, threshold, wavelength=500 * 10 ** -9, NA=1.1,
+    def measure_fourier_metric(self, image, wavelength=500 * 10 ** -9, NA=1.1,
                                pixel_size=0.1193 * 10 ** -6):
         ray_crit_dist = (1.22 * wavelength) / (2 * NA)
         ray_crit_freq = 1 / ray_crit_dist
@@ -329,33 +329,25 @@ class AdaptiveOpticsFunctions():
 
         fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
+        cent2corner = np.sqrt(2 * ((image.shape[0] / 2) ** 2))
+        rad_to_corner = cent2corner - OTF_outer_rad
+        noise_corner_size = int(np.round(np.sqrt((rad_to_corner ** 2) / 2) * 0.9))
+        noise = (fftarray_sq_log[0:noise_corner_size, 0:noise_corner_size] +
+                 fftarray_sq_log[0:noise_corner_size, -noise_corner_size:] +
+                 fftarray_sq_log[-noise_corner_size:, 0:noise_corner_size] +
+                 fftarray_sq_log[-noise_corner_size:, -noise_corner_size:]) / 4
+        threshold = np.mean(noise) * 1.125
+
         ring_mask = self.make_ring_mask(np.shape(image),0.1 * OTF_outer_rad, OTF_outer_rad)
         freq_above_noise = (fftarray_sq_log > threshold) * ring_mask
         metric = np.count_nonzero(freq_above_noise)
         return metric
 
     def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes):
-        all_thresh = []
-        radius = int(image_stack.shape[1]/2)
-        diameter = image_stack.shape[1]
-        inner_mask = np.sqrt((np.arange(-radius,radius)**2).reshape((diameter,1)) + (np.arange(-radius,radius)**2)) > 0.05*radius
-        tukey_window = tukey(image_stack.shape[1], .10, True)
-        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
-        for ii in range(image_stack.shape[0]):
-            im_tukey = np.fft.fftshift(np.fft.fftshift(image_stack[ii, :, :]) * tukey_window)
-            fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
-            fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
-            ft_for_otsu = fftarray_sq_log * inner_mask
-            thresh = threshold_otsu(ft_for_otsu)
-            all_thresh.append(thresh*1.1)
-        all_thresh = np.asarray(all_thresh)
-        mean_thresh = np.mean(all_thresh)
-
-
         metrics_measured = []
         for ii in range(image_stack.shape[0]):
             print("Measuring metric %i/%i" % (ii + 1, image_stack.shape[0]))
-            metric_measured = self.measure_fourier_metric(image_stack[ii, :, :], threshold=mean_thresh)
+            metric_measured = self.measure_fourier_metric(image_stack[ii, :, :])
             metrics_measured.append(metric_measured)
         metrics_measured = np.asarray(metrics_measured)
 
