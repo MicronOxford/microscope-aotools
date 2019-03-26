@@ -359,9 +359,13 @@ class AdaptiveOpticsFunctions():
         try:
             [offset, normalising, mean, std_dev], pcov = curve_fit(gaussian_funcion, zernike_amplitudes, metrics_measured)
             print("Calculating amplitude present")
+            if (normalising - offset) < 0:
+                print("Fitting converged on minima. Defaulting to 0 amplitude")
+                mean = 0
         except RuntimeError:
             print("Could not accurately fit metric polynomial.")
             mean = 0
+
         amplitude_present = -1.0 * mean
         print("Amplitude calculated = %f" % amplitude_present)
         return amplitude_present
