@@ -654,7 +654,7 @@ class AdaptiveOpticsDevice(Device):
     def correct_sensorless_single_mode(self, image_stack, zernike_applied, nollIndex, offset = None):
         z_amps = np.zeros(self.numActuators)
         amp_to_correct = aoAlg.find_zernike_amp_sensorless(image_stack,zernike_applied)
-        if abs(amp_to_correct) <= 5*np.max(abs(zernike_applied)):
+        if abs(amp_to_correct) <= 2.5*np.max(abs(zernike_applied)):
            self._logger.info("Amplitude calculated = %f" % amp_to_correct)
         else:
             self._logger.info("Amplitude calculated = %f" % amp_to_correct)
