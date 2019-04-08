@@ -667,13 +667,13 @@ class AdaptiveOpticsDevice(Device):
             ac_pos_correcting = self.set_phase(z_amps, offset=offset)
         return amp_to_correct, ac_pos_correcting
 
-# Deprecated, need to fix
-#    @Pyro4.expose
-#    def correct_sensorless_all_modes(self, full_image_stack, full_zernike_applied, nollZernike, pixel_size, offset = None):
-#        #May change this function later if we hand control of other cameras to the composite device
-#        coef = aoAlg.get_zernike_modes_sensorless(full_image_stack, full_zernike_applied, nollZernike, pixel_size=pixel_size)
-#        if np.any(offset) == None:
-#            ac_pos_correcting = self.set_phase(coef)
-#        else:
-#            ac_pos_correcting = self.set_phase(coef, offset=offset)
-#        return coef, ac_pos_correcting
+    @Pyro4.expose
+    def correct_sensorless_all_modes(self, full_image_stack, full_zernike_applied, nollZernike, wavelength, NA, pixel_size, offset=None):
+        #May change this function later if we hand control of other cameras to the composite device
+        coef = aoAlg.get_zernike_modes_sensorless(full_image_stack, full_zernike_applied, nollZernike=nollZernike,
+                                                  wavelength=wavelength, NA=NA, pixel_size=pixel_size)
+        if np.any(offset) == None:
+            ac_pos_correcting = self.set_phase(coef)
+        else:
+            ac_pos_correcting = self.set_phase(coef, offset=offset)
+        return coef, ac_pos_correcting

@@ -343,11 +343,13 @@ class AdaptiveOpticsFunctions():
         metric = np.count_nonzero(freq_above_noise)
         return metric
 
-    def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes):
+    def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, wavelength=500 * 10 ** -9, NA=1.1,
+                               pixel_size=0.1193 * 10 ** -6):
         metrics_measured = []
         for ii in range(image_stack.shape[0]):
             print("Measuring metric %i/%i" % (ii + 1, image_stack.shape[0]))
-            metric_measured = self.measure_fourier_metric(image_stack[ii, :, :])
+            metric_measured = self.measure_fourier_metric(image_stack[ii, :, :], wavelength=wavelength, NA=NA,
+                                                          pixel_size=pixel_size)
             metrics_measured.append(metric_measured)
         metrics_measured = np.asarray(metrics_measured)
 
@@ -364,17 +366,17 @@ class AdaptiveOpticsFunctions():
         print("Amplitude calculated = %f" % amplitude_present)
         return amplitude_present
 
-# Deprecated, need to fix
-#    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike, num_segs=100,
-#                                     pixel_size=0.1193 * 10 ** -6):
-#        numMes = full_zernike_applied.shape[0]/nollZernike.shape[0]
-#
-#        coef = np.zeros(full_zernike_applied.shape[1])
-#        for ii in range(nollZernike.shape[0]):
-#            image_stack = full_image_stack[ii * numMes:(ii + 1) * numMes,:,:]
-#            zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]-1]
-#            print("Calculating Zernike amplitude %i/%i" %(ii+1, nollZernike.shape[0]))
-#            amp = self.find_zernike_amp_sensorless(image_stack, zernike_applied, num_segs=num_segs, pixel_size=pixel_size)
-#            coef[nollZernike[ii]-1] = amp
-#
-#        return coef
+    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike,
+                                     wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
+        numMes = full_zernike_applied.shape[0]/nollZernike.shape[0]
+
+        coef = np.zeros(full_zernike_applied.shape[1])
+        for ii in range(nollZernike.shape[0]):
+            image_stack = full_image_stack[ii * numMes:(ii + 1) * numMes,:,:]
+            zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]-1]
+            print("Calculating Zernike amplitude %i/%i" %(ii+1, nollZernike.shape[0]))
+            amp = self.find_zernike_amp_sensorless(image_stack, zernike_applied, wavelength=wavelength, NA=NA,
+                                                   pixel_size=pixel_size)
+            coef[nollZernike[ii]-1] = amp
+
+        return coef
