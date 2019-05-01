@@ -152,14 +152,14 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def set_roi(self, y0, x0, radius):
-        self.roi = (y0, x0, radius)
+        self.roi = (int(np.round(y0)), int(np.round(x0)), int(np.round(radius)))
         try:
             assert self.roi is not None
         except:
             raise Exception("ROI assignment failed")
 
         #Mask will need to be reconstructed as radius has changed
-        self.mask = aoAlg.make_mask(radius)
+        self.mask = aoAlg.make_mask(self.roi[2])
         try:
             assert self.mask is not None
         except:
