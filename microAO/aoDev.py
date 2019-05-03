@@ -55,7 +55,6 @@ class AdaptiveOpticsDevice(Device):
         # Wavefront sensor. Must support soft_trigger for now.
         self.wavefront_camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(wavefront_uri[0].__name__,
                                                     wavefront_uri[1], wavefront_uri[2]))
-        self.wavefront_camera.enable()
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
                                                 mirror_uri[1], mirror_uri[2]))
@@ -99,6 +98,14 @@ class AdaptiveOpticsDevice(Device):
 
     def initialize(self, *args, **kwargs):
         pass
+
+    @Pyro4.expose
+    def enable_camera(self):
+        self.wavefront_camera.enable()
+
+    @Pyro4.expose
+    def disable_camera(self):
+        self.wavefront_camera.disable()
 
     @Pyro4.expose
     def set_trigger(self, cp_ttype, cp_tmode):
