@@ -75,6 +75,10 @@ class AdaptiveOpticsDevice(Device):
         # Last applied actuators pattern
         self.last_actuator_patterns = None
 
+        #Record the trigger type and modes that have been set
+        self.last_trigger_type = None
+        self.last_trigger_mode = None
+
         ##We don't use all the actuators. Create a mask for the actuators outside
         ##the pupil so we can selectively calibrate them. 0 denotes actuators at
         ##the edge, i.e. outside the pupil, and 1 denotes actuators in the pupil
@@ -113,6 +117,13 @@ class AdaptiveOpticsDevice(Device):
         tmode = self._CockpitTriggerModes_to_TriggerModes[cp_tmode]
         self.mirror.set_trigger(ttype, tmode)
 
+        self.last_trigger_type = cp_ttype
+        self.last_trigger_mode = cp_tmode
+
+    @Pyro4.expose
+    def get_trigger(self):
+        return self.last_trigger_type, self.last_trigger_mode
+
     @Pyro4.expose
     def get_pattern_index(self):
         return self.mirror.get_pattern_index()
@@ -123,6 +134,12 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def send(self, values):
+        self._logger.info("Sending pattern to DM")
+
+        ttype, tmode = self.get_trigger()
+        if ttype is not "SOFTWARE":
+            self.set_trigger(cp_ttype="SOFTWARE", cp_tmode="ONCE")
+
         #Need to normalise patterns because general DM class expects 0-1 values
         values[values > 1.0] = 1.0
         values[values < 0.0] = 0.0
@@ -130,9 +147,11 @@ class AdaptiveOpticsDevice(Device):
         try:
             self.mirror.apply_pattern(values)
         except Exception as e:
-            self._logger.info(e)
+            raise e
 
         self.last_actuator_values = values
+        if (ttype, tmode) is not self.get_trigger():
+            self.set_trigger(cp_ttype=ttype,cp_tmode=tmode)
 
     @Pyro4.expose
     def get_last_actuator_values(self):
@@ -142,6 +161,10 @@ class AdaptiveOpticsDevice(Device):
     def queue_patterns(self, patterns):
         self._logger.info("Queuing patterns on DM")
 
+        ttype, tmode = self.get_trigger()
+        if ttype is not "RISING_EDGE":
+            self.set_trigger(cp_ttype="RISING_EDGE", cp_tmode="ONCE")
+
         # Need to normalise patterns because general DM class expects 0-1 values
         patterns[patterns > 1.0] = 1.0
         patterns[patterns < 0.0] = 0.0
@@ -149,9 +172,11 @@ class AdaptiveOpticsDevice(Device):
         try:
             self.mirror.queue_patterns(patterns)
         except Exception as e:
-            self._logger.info(e)
+            raise e
 
         self.last_actuator_patterns = patterns
+        if (ttype, tmode) is not self.get_trigger():
+            self.set_trigger(cp_ttype=ttype,cp_tmode=tmode)
 
     @Pyro4.expose
     def get_last_actuator_patterns(self):
