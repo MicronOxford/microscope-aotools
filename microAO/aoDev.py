@@ -353,7 +353,7 @@ class AdaptiveOpticsDevice(Device):
             pass
 
         if np.any(pupil_ac == None):
-            pupil_ac = np.ones(self.numActuators)
+            pupil_ac = self.pupil_ac
         else:
             pass
 
@@ -372,7 +372,7 @@ class AdaptiveOpticsDevice(Device):
             unwrapped_stack_cropped = np.zeros((numPokeSteps, y, x))
 
             # Determine if the current actuator is in the pupil
-            if self.pupil_ac[ac] == 1:
+            if pupil_ac[ac] == 1:
                 pokeAc = np.zeros(self.numActuators)
                 zernikeModeAmp_list = []
 
