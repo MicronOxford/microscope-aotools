@@ -79,19 +79,16 @@ class AdaptiveOpticsDevice(Device):
         self.last_trigger_type = None
         self.last_trigger_mode = None
 
-        ##We don't use all the actuators. Create a mask for the actuators outside
-        ##the pupil so we can selectively calibrate them. 0 denotes actuators at
-        ##the edge, i.e. outside the pupil, and 1 denotes actuators in the pupil
+        # We might not use all the actuators. Create a mask for the actuators outside
+        # the pupil so we can selectively calibrate them. 0 denotes actuators at
+        # the edge, i.e. outside the pupil, and 1 denotes actuators in the pupil
 
-        #Use this if all actuators are being used
-        #self.pupil_ac = np.ones(self.numActuators)
-
-        #Preliminary mask for DeepSIM
+        # Preliminary mask for DeepSIM
         self.pupil_ac = np.ones(self.numActuators)
 
         try:
             assert np.shape(self.pupil_ac)[0] == self.numActuators
-        except:
+        except Exception:
             raise Exception("Length mismatch between pupil mask (%i) and "
                             "number of actuators (%i). Please provide a mask "
                             "of the correct length" %(np.shape(self.pupil_ac)[0],
@@ -131,6 +128,22 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def get_n_actuators(self):
         return self.numActuators
+
+    @Pyro4.expose
+    def set_pupil_ac(self, pupil_ac):
+        try:
+            assert np.shape(pupil_ac)[0] == self.numActuators
+        except Exception:
+            raise Exception("Length mismatch between pupil mask (%i) and "
+                            "number of actuators (%i). Please provide a mask "
+                            "of the correct length" %(np.shape(pupil_ac)[0],
+                                                      self.numActuators))
+
+        self.pupil_ac = pupil_ac
+
+    @Pyro4.expose
+    def get_pupil_ac(self):
+        return self.pupil_ac
 
     @Pyro4.expose
     def send(self, values):
