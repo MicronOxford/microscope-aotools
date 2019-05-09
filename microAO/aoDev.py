@@ -197,7 +197,7 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("Mask construction failed")
 
-        #Fourier filter should be erased, as it's probably wrong. 
+        #Fourier filter should be erased, as it's probably wrong.
         ##Might be unnecessary
         self.fft_filter = None
         return
@@ -559,7 +559,7 @@ class AdaptiveOpticsDevice(Device):
 
         # Obtain actuator positions to correct for system aberrations
         # Ignore piston, tip, tilt and defocus
-        z_modes_ignore = np.asarray(range(self.numActuators) > 3)
+        z_modes_ignore = z_modes_ignore = np.asarray(range(69)) > 3
         self.flat_actuators_sys = self.flatten_phase(iterations=25, z_modes_ignore=z_modes_ignore)
 
         return self.controlMatrix, self.flat_actuators_sys
@@ -593,7 +593,7 @@ class AdaptiveOpticsDevice(Device):
         #Set which modes to ignore while flattening
         if np.any(z_modes_ignore) is None:
             #By default, ignore piston, tip and tilt
-            z_modes_ignore = np.asarray(range(self.numActuators) > 2)
+            z_modes_ignore = np.asarray(range(69)) > 2
         else:
             pass
 
