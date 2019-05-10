@@ -246,7 +246,9 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def reset(self):
         self._logger.info("Resetting DM")
+        last_ac = np.copy(self.last_actuator_values)
         self.send(np.zeros(self.numActuators) + 0.5)
+        self.last_actuator_values = last_ac
 
     @Pyro4.expose
     def make_mask(self, radius):
