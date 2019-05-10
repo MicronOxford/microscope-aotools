@@ -645,7 +645,11 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def set_phase(self, applied_z_modes, offset = None):
-        actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes, self.numActuators)
+        try:
+            actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes, self.numActuators)
+        except Exception as err:
+            self._logger.info(err)
+            raise err
         if np.any(offset) is None:
             actuator_pos += 0.5
         else:
