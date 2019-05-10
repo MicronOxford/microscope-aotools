@@ -79,19 +79,16 @@ class AdaptiveOpticsDevice(Device):
         self.last_trigger_type = None
         self.last_trigger_mode = None
 
-        ##We don't use all the actuators. Create a mask for the actuators outside
-        ##the pupil so we can selectively calibrate them. 0 denotes actuators at
-        ##the edge, i.e. outside the pupil, and 1 denotes actuators in the pupil
+        # We might not use all the actuators. Create a mask for the actuators outside
+        # the pupil so we can selectively calibrate them. 0 denotes actuators at
+        # the edge, i.e. outside the pupil, and 1 denotes actuators in the pupil
 
-        #Use this if all actuators are being used
-        #self.pupil_ac = np.ones(self.numActuators)
-
-        #Preliminary mask for DeepSIM
+        # Preliminary mask for DeepSIM
         self.pupil_ac = np.ones(self.numActuators)
 
         try:
             assert np.shape(self.pupil_ac)[0] == self.numActuators
-        except:
+        except Exception:
             raise Exception("Length mismatch between pupil mask (%i) and "
                             "number of actuators (%i). Please provide a mask "
                             "of the correct length" %(np.shape(self.pupil_ac)[0],
@@ -131,6 +128,22 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def get_n_actuators(self):
         return self.numActuators
+
+    @Pyro4.expose
+    def set_pupil_ac(self, pupil_ac):
+        try:
+            assert np.shape(pupil_ac)[0] == self.numActuators
+        except Exception:
+            raise Exception("Length mismatch between pupil mask (%i) and "
+                            "number of actuators (%i). Please provide a mask "
+                            "of the correct length" %(np.shape(pupil_ac)[0],
+                                                      self.numActuators))
+
+        self.pupil_ac = pupil_ac
+
+    @Pyro4.expose
+    def get_pupil_ac(self):
+        return self.pupil_ac
 
     @Pyro4.expose
     def send(self, values):
@@ -197,7 +210,7 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("Mask construction failed")
 
-        #Fourier filter should be erased, as it's probably wrong. 
+        #Fourier filter should be erased, as it's probably wrong.
         ##Might be unnecessary
         self.fft_filter = None
         return
@@ -353,7 +366,7 @@ class AdaptiveOpticsDevice(Device):
             pass
 
         if np.any(pupil_ac == None):
-            pupil_ac = np.ones(self.numActuators)
+            pupil_ac = self.pupil_ac
         else:
             pass
 
@@ -372,7 +385,7 @@ class AdaptiveOpticsDevice(Device):
             unwrapped_stack_cropped = np.zeros((numPokeSteps, y, x))
 
             # Determine if the current actuator is in the pupil
-            if self.pupil_ac[ac] == 1:
+            if pupil_ac[ac] == 1:
                 pokeAc = np.zeros(self.numActuators)
                 zernikeModeAmp_list = []
 
@@ -559,7 +572,7 @@ class AdaptiveOpticsDevice(Device):
 
         # Obtain actuator positions to correct for system aberrations
         # Ignore piston, tip, tilt and defocus
-        z_modes_ignore = np.asarray(range(self.numActuators) > 3)
+        z_modes_ignore = z_modes_ignore = np.asarray(range(69)) > 3
         self.flat_actuators_sys = self.flatten_phase(iterations=25, z_modes_ignore=z_modes_ignore)
 
         return self.controlMatrix, self.flat_actuators_sys
@@ -593,7 +606,7 @@ class AdaptiveOpticsDevice(Device):
         #Set which modes to ignore while flattening
         if np.any(z_modes_ignore) is None:
             #By default, ignore piston, tip and tilt
-            z_modes_ignore = np.asarray(range(self.numActuators) > 2)
+            z_modes_ignore = np.asarray(range(69)) > 2
         else:
             pass
 
