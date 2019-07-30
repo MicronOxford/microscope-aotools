@@ -149,6 +149,16 @@ class AdaptiveOpticsDevice(Device):
         return self.pupil_ac
 
     @Pyro4.expose
+    def set_metric(self,metric):
+        aoAlg.set_metric(metric)
+
+    def get_metric(self):
+        metric = aoAlg.get_metric()
+        self._logger.info("Current image quality metric is: %s" %metric)
+        return metric
+
+
+    @Pyro4.expose
     def send(self, values):
         self._logger.info("Sending pattern to DM")
 
