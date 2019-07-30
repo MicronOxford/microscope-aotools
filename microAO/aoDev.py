@@ -18,64 +18,67 @@
 ## You should have received a copy of the GNU General Public License
 ## along with microAO.  If not, see <http://www.gnu.org/licenses/>.
 
-#Import required packs
+# Import required packs
 import numpy as np
 import Pyro4
 import time
 from microAO.aoAlg import AdaptiveOpticsFunctions
 
-#Should fix this with multiple inheritance for this class!
+# Should fix this with multiple inheritance for this class!
 aoAlg = AdaptiveOpticsFunctions()
 
 from microscope.devices import Device
 from microscope.devices import TriggerType
 from microscope.devices import TriggerMode
 
+
 class AdaptiveOpticsDevice(Device):
     """Class for the adaptive optics device
 
     This class requires a mirror and a camera. Everything else is generated
     on or after __init__"""
-    
+
     _CockpitTriggerType_to_TriggerType = {
-    "SOFTWARE" : TriggerType.SOFTWARE,
-    "RISING_EDGE" : TriggerType.RISING_EDGE,
-    "FALLING_EDGE" : TriggerType.FALLING_EDGE,
+        "SOFTWARE": TriggerType.SOFTWARE,
+        "RISING_EDGE": TriggerType.RISING_EDGE,
+        "FALLING_EDGE": TriggerType.FALLING_EDGE,
     }
 
     _CockpitTriggerModes_to_TriggerModes = {
-    "ONCE" : TriggerMode.ONCE,
-    "START" : TriggerMode.START,
+        "ONCE": TriggerMode.ONCE,
+        "START": TriggerMode.START,
     }
 
-    def __init__(self, wavefront_uri, mirror_uri, **kwargs):
+    def __init__(self, wavefront_uri, mirror_uri, slm_uri, **kwargs):
         # Init will fail if devices it depends on aren't already running, but
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
         # Wavefront sensor. Must support soft_trigger for now.
-        self.wavefront_camera = Pyro4.Proxy('PYRO:%s@%s:%d' %(wavefront_uri[0].__name__,
-                                                    wavefront_uri[1], wavefront_uri[2]))
+        self.wavefront_camera = Pyro4.Proxy('PYRO:%s@%s:%d' % (wavefront_uri[0].__name__,
+                                                               wavefront_uri[1], wavefront_uri[2]))
         # Deformable mirror device.
-        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' %(mirror_uri[0].__name__,
-                                                mirror_uri[1], mirror_uri[2]))
-        #self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
+        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' % (mirror_uri[0].__name__,
+                                                     mirror_uri[1], mirror_uri[2]))
+        # SLM device
+        self.slm = Pyro4.Proxy('PYRO:%s@%s:%d' % (slm_uri[0], slm_uri[1], slm_uri[2]))
+        # self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
         self.numActuators = self.mirror.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
-        #Mask for the interferometric data
+        # Mask for the interferometric data
         self.mask = None
-        #Mask to select phase information
+        # Mask to select phase information
         self.fft_filter = None
-        #Control Matrix
+        # Control Matrix
         self.controlMatrix = None
-        #System correction
+        # System correction
         self.flat_actuators_sys = np.zeros(self.numActuators)
-        #Last applied actuators values
+        # Last applied actuators values
         self.last_actuator_values = None
         # Last applied actuators pattern
         self.last_actuator_patterns = None
 
-        #Record the trigger type and modes that have been set
+        # Record the trigger type and modes that have been set
         self.last_trigger_type = None
         self.last_trigger_mode = None
 
@@ -91,8 +94,8 @@ class AdaptiveOpticsDevice(Device):
         except Exception:
             raise Exception("Length mismatch between pupil mask (%i) and "
                             "number of actuators (%i). Please provide a mask "
-                            "of the correct length" %(np.shape(self.pupil_ac)[0],
-                                                      self.numActuators))
+                            "of the correct length" % (np.shape(self.pupil_ac)[0],
+                                                       self.numActuators))
 
     def _on_shutdown(self):
         pass
@@ -136,8 +139,8 @@ class AdaptiveOpticsDevice(Device):
         except Exception:
             raise Exception("Length mismatch between pupil mask (%i) and "
                             "number of actuators (%i). Please provide a mask "
-                            "of the correct length" %(np.shape(pupil_ac)[0],
-                                                      self.numActuators))
+                            "of the correct length" % (np.shape(pupil_ac)[0],
+                                                       self.numActuators))
 
         self.pupil_ac = pupil_ac
 
@@ -153,7 +156,7 @@ class AdaptiveOpticsDevice(Device):
         if ttype is not "SOFTWARE":
             self.set_trigger(cp_ttype="SOFTWARE", cp_tmode="ONCE")
 
-        #Need to normalise patterns because general DM class expects 0-1 values
+        # Need to normalise patterns because general DM class expects 0-1 values
         values[values > 1.0] = 1.0
         values[values < 0.0] = 0.0
 
@@ -164,7 +167,7 @@ class AdaptiveOpticsDevice(Device):
 
         self.last_actuator_values = values
         if (ttype, tmode) is not self.get_trigger():
-            self.set_trigger(cp_ttype=ttype,cp_tmode=tmode)
+            self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
 
     @Pyro4.expose
     def get_last_actuator_values(self):
@@ -189,7 +192,7 @@ class AdaptiveOpticsDevice(Device):
 
         self.last_actuator_patterns = patterns
         if (ttype, tmode) is not self.get_trigger():
-            self.set_trigger(cp_ttype=ttype,cp_tmode=tmode)
+            self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
 
     @Pyro4.expose
     def get_last_actuator_patterns(self):
@@ -203,14 +206,14 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("ROI assignment failed")
 
-        #Mask will need to be reconstructed as radius has changed
+        # Mask will need to be reconstructed as radius has changed
         self.mask = aoAlg.make_mask(self.roi[2])
         try:
             assert self.mask is not None
         except:
             raise Exception("Mask construction failed")
 
-        #Fourier filter should be erased, as it's probably wrong.
+        # Fourier filter should be erased, as it's probably wrong.
         ##Might be unnecessary
         self.fft_filter = None
         return
@@ -236,9 +239,8 @@ class AdaptiveOpticsDevice(Device):
         else:
             return self.controlMatrix
 
-
     @Pyro4.expose
-    def set_controlMatrix(self,controlMatrix):
+    def set_controlMatrix(self, controlMatrix):
         self.controlMatrix = controlMatrix
         aoAlg.set_controlMatrix(controlMatrix)
         return
@@ -268,7 +270,7 @@ class AdaptiveOpticsDevice(Device):
                     time.sleep(1)
                 else:
                     self._logger.info(type(e))
-                    self._logger.info("Error is: %s" %(e))
+                    self._logger.info("Error is: %s" % (e))
                     raise e
         return data_raw
 
@@ -285,7 +287,7 @@ class AdaptiveOpticsDevice(Device):
                     time.sleep(1)
                 else:
                     self._logger.info(type(e))
-                    self._logger.info("Error is: %s" %(e))
+                    self._logger.info("Error is: %s" % (e))
                     raise e
         if np.any(self.roi) is None:
             data = data_raw
@@ -302,7 +304,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def set_fourierfilter(self, test_image, region=None):
-        #Ensure an ROI is defined so a masked image is obtained
+        # Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
         except:
@@ -315,8 +317,8 @@ class AdaptiveOpticsDevice(Device):
         return self.fft_filter
 
     @Pyro4.expose
-    def phaseunwrap(self, image = None):
-        #Ensure an ROI is defined so a masked image is obtained
+    def phaseunwrap(self, image=None):
+        # Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
         except:
@@ -325,7 +327,7 @@ class AdaptiveOpticsDevice(Device):
         if np.any(image) is None:
             image = self.acquire()
 
-        #Ensure the filters has been constructed
+        # Ensure the filters has been constructed
         if np.any(self.mask) is None:
             self.mask = self.make_mask(int(np.round(np.shape(image)[0] / 2)))
         else:
@@ -342,10 +344,9 @@ class AdaptiveOpticsDevice(Device):
         self.out = aoAlg.phase_unwrap(image)
         return self.out
 
-
     @Pyro4.expose
-    def getzernikemodes(self, image_unwrap, noZernikeModes, resize_dim = 128):
-        coef = aoAlg.get_zernike_modes(image_unwrap, noZernikeModes, resize_dim = resize_dim)
+    def getzernikemodes(self, image_unwrap, noZernikeModes, resize_dim=128):
+        coef = aoAlg.get_zernike_modes(image_unwrap, noZernikeModes, resize_dim=resize_dim)
         return coef
 
     @Pyro4.expose
@@ -432,7 +433,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def acquire_unwrapped_phase(self):
-        #Ensure an ROI is defined so a masked image is obtained
+        # Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
         except:
@@ -454,22 +455,22 @@ class AdaptiveOpticsDevice(Device):
         return interferogram, interferogram_unwrap
 
     @Pyro4.expose
-    def measure_zernike(self,noZernikeModes):
+    def measure_zernike(self, noZernikeModes):
         interferogram, unwrapped_phase = self.acquire_unwrapped_phase()
-        zernike_amps = self.getzernikemodes(unwrapped_phase,noZernikeModes)
+        zernike_amps = self.getzernikemodes(unwrapped_phase, noZernikeModes)
         return zernike_amps
 
     @Pyro4.expose
     def wavefront_rms_error(self):
         phase_map = self.acquire_unwrapped_phase()
         true_flat = np.zeros(np.shape(phase_map))
-        rms_error = np.sqrt(np.mean((true_flat - phase_map)**2))
+        rms_error = np.sqrt(np.mean((true_flat - phase_map) ** 2))
         return rms_error
 
     @Pyro4.expose
-    def calibrate(self, numPokeSteps = 5, noZernikeModes = 69, threshold = 0.005):
+    def calibrate(self, numPokeSteps=5, noZernikeModes=69, threshold=0.005):
         self.wavefront_camera.set_exposure_time(0.1)
-        #Ensure an ROI is defined so a masked image is obtained
+        # Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
         except:
@@ -478,13 +479,13 @@ class AdaptiveOpticsDevice(Device):
         test_image = np.asarray(self.acquire())
         (y, x) = np.shape(test_image)
 
-        #Ensure the filters has been constructed
+        # Ensure the filters has been constructed
         if np.any(self.mask) is None:
             self._logger.info("Constructing mask")
             self.mask = self.make_mask(self.roi[2])
         else:
             pass
-            
+
         if np.any(self.fft_filter) is None:
             self._logger.info("Constructing Fourier filter")
             self.fft_filter = self.set_fourierfilter(test_image[:, :])
@@ -495,8 +496,8 @@ class AdaptiveOpticsDevice(Device):
 
         poke_min = 0.25
         poke_max = 0.75
-        pokeSteps = np.linspace(poke_min,poke_max,numPokeSteps)
-        noImages = numPokeSteps*(np.shape(np.where(self.pupil_ac == 1))[1])
+        pokeSteps = np.linspace(poke_min, poke_max, numPokeSteps)
+        noImages = numPokeSteps * (np.shape(np.where(self.pupil_ac == 1))[1])
 
         assert x == y
         edge_mask = np.sqrt(
@@ -504,7 +505,7 @@ class AdaptiveOpticsDevice(Device):
         all_zernikeModeAmp = []
         all_pokeAmps = []
 
-        actuator_values = np.zeros((noImages,nzernike)) + 0.5
+        actuator_values = np.zeros((noImages, nzernike)) + 0.5
         for ii in range(nzernike):
             for jj in range(numPokeSteps):
                 actuator_values[(numPokeSteps * ii) + jj, ii] = pokeSteps[jj]
@@ -522,12 +523,12 @@ class AdaptiveOpticsDevice(Device):
                 for im in range(numPokeSteps):
                     curr_calc += 1
                     try:
-                        self.send(actuator_values[(curr_calc-1),:])
+                        self.send(actuator_values[(curr_calc - 1), :])
                     except:
                         self._logger.info("Actuator values being sent:")
-                        self._logger.info(actuator_values[(curr_calc-1),:])
+                        self._logger.info(actuator_values[(curr_calc - 1), :])
                         self._logger.info("Shape of actuator vector:")
-                        self._logger.info(np.shape(actuator_values[(curr_calc-1),:]))
+                        self._logger.info(np.shape(actuator_values[(curr_calc - 1), :]))
                     self._logger.info("Frame %i/%i captured" % (curr_calc, noImages))
 
                     # Acquire the current poke image
@@ -564,11 +565,11 @@ class AdaptiveOpticsDevice(Device):
         self.reset()
 
         self._logger.info("Computing Control Matrix")
-        self.controlMatrix = aoAlg.create_control_matrix(zernikeAmps = all_zernikeModeAmp,
-                                                         pokeSteps = all_pokeAmps,
-                                                         numActuators = self.numActuators,
-                                                         pupil_ac = self.pupil_ac,
-                                                         threshold = threshold)
+        self.controlMatrix = aoAlg.create_control_matrix(zernikeAmps=all_zernikeModeAmp,
+                                                         pokeSteps=all_pokeAmps,
+                                                         numActuators=self.numActuators,
+                                                         pupil_ac=self.pupil_ac,
+                                                         threshold=threshold)
         self._logger.info("Control Matrix computed")
         np.save("control_matrix", self.controlMatrix)
 
@@ -580,8 +581,8 @@ class AdaptiveOpticsDevice(Device):
         return self.controlMatrix, self.flat_actuators_sys
 
     @Pyro4.expose
-    def flatten_phase(self, iterations = 1, z_modes_ignore = None):
-        #Ensure an ROI is defined so a masked image is obtained
+    def flatten_phase(self, iterations=1, z_modes_ignore=None):
+        # Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
         except:
@@ -597,7 +598,7 @@ class AdaptiveOpticsDevice(Device):
         else:
             pass
 
-        #Check dimensions match
+        # Check dimensions match
         numActuators, nzernike = np.shape(self.controlMatrix)
         try:
             assert numActuators == self.numActuators
@@ -605,9 +606,9 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("Control Matrix dimension 0 axis and number of "
                             "actuators do not match.")
 
-        #Set which modes to ignore while flattening
+        # Set which modes to ignore while flattening
         if np.any(z_modes_ignore) is None:
-            #By default, ignore piston, tip and tilt
+            # By default, ignore piston, tip and tilt
             z_modes_ignore = np.asarray(range(69)) > 2
         else:
             pass
@@ -615,8 +616,8 @@ class AdaptiveOpticsDevice(Device):
         best_flat_actuators = np.zeros(numActuators) + 0.5
         self.send(best_flat_actuators)
 
-        #Get a measure of the RMS phase error of the uncorrected wavefront
-        #The corrected wavefront should be better than this
+        # Get a measure of the RMS phase error of the uncorrected wavefront
+        # The corrected wavefront should be better than this
         interferogram = self.acquire()
         interferogram_unwrap = self.phaseunwrap(interferogram)
 
@@ -624,7 +625,7 @@ class AdaptiveOpticsDevice(Device):
         assert x == y
 
         true_flat = np.zeros(np.shape(interferogram_unwrap))
-        best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
+        best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
 
         for ii in range(iterations):
             interferogram = self.acquire()
@@ -632,17 +633,17 @@ class AdaptiveOpticsDevice(Device):
 
             edge_mask = np.sqrt(
                 (np.arange(-x / 2.0, x / 2.0) ** 2).reshape((x, 1)) + (np.arange(-x / 2.0, x / 2.0) ** 2)) < (
-                                    (x / 2.0) - 3)
+                                (x / 2.0) - 3)
             diff_image = abs(np.diff(np.diff(interferogram_unwrap, axis=1), axis=0)) * edge_mask[:-1, :-1]
             no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
 
             z_amps = self.getzernikemodes(interferogram_unwrap, nzernike)
 
-            #We ignore piston, tip and tilt
+            # We ignore piston, tip and tilt
             z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
 
-            rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap)**2))
+            rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
             if rms_error < best_rms_error:
                 if no_discontinuities > (x * y) / 1000.0:
                     self._logger.info("Too many discontinuities in wavefront unwrap")
@@ -659,7 +660,7 @@ class AdaptiveOpticsDevice(Device):
         return best_flat_actuators
 
     @Pyro4.expose
-    def set_phase(self, applied_z_modes, offset = None):
+    def set_phase(self, applied_z_modes, offset=None):
         try:
             actuator_pos = aoAlg.ac_pos_from_zernike(applied_z_modes, self.numActuators)
         except Exception as err:
@@ -673,8 +674,8 @@ class AdaptiveOpticsDevice(Device):
         return actuator_pos
 
     @Pyro4.expose
-    def assess_character(self, modes_tba = None):
-        #Ensure a Fourier filter has been constructed
+    def assess_character(self, modes_tba=None):
+        # Ensure a Fourier filter has been constructed
         if np.any(self.fft_filter) is None:
             try:
                 test_image = self.acquire()
@@ -686,32 +687,32 @@ class AdaptiveOpticsDevice(Device):
 
         if modes_tba is None:
             modes_tba = self.numActuators
-        assay = np.zeros((modes_tba,modes_tba))
+        assay = np.zeros((modes_tba, modes_tba))
         applied_z_modes = np.zeros(modes_tba)
         for ii in range(modes_tba):
             self.reset()
             z_modes_ac0 = self.measure_zernike(modes_tba)
             applied_z_modes[ii] = 1
             self.set_phase(applied_z_modes)
-            self._logger.info("Appling Zernike mode %i/%i" %(ii,modes_tba))
+            self._logger.info("Appling Zernike mode %i/%i" % (ii, modes_tba))
             acquired_z_modes = self.measure_zernike(modes_tba)
             self._logger.info("Measured phase")
-            assay[:,ii] = acquired_z_modes - z_modes_ac0
+            assay[:, ii] = acquired_z_modes - z_modes_ac0
             applied_z_modes[ii] = 0.0
         self.reset()
         return assay
 
     @Pyro4.expose
-    def correct_sensorless_single_mode(self, image_stack, zernike_applied, nollIndex, offset = None):
+    def correct_sensorless_single_mode(self, image_stack, zernike_applied, nollIndex, offset=None):
         z_amps = np.zeros(self.numActuators)
-        amp_to_correct = aoAlg.find_zernike_amp_sensorless(image_stack,zernike_applied)
-        if abs(amp_to_correct) <= 2.5*np.max(abs(zernike_applied)):
-           self._logger.info("Amplitude calculated = %f" % amp_to_correct)
+        amp_to_correct = aoAlg.find_zernike_amp_sensorless(image_stack, zernike_applied)
+        if abs(amp_to_correct) <= 2.5 * np.max(abs(zernike_applied)):
+            self._logger.info("Amplitude calculated = %f" % amp_to_correct)
         else:
             self._logger.info("Amplitude calculated = %f" % amp_to_correct)
             self._logger.info("Amplitude magnitude too large. Defaulting to 0.")
             amp_to_correct = 0
-        z_amps[nollIndex-1] = -1.0*amp_to_correct
+        z_amps[nollIndex - 1] = -1.0 * amp_to_correct
         if np.any(offset) == None:
             ac_pos_correcting = self.set_phase(z_amps)
         else:
@@ -719,8 +720,9 @@ class AdaptiveOpticsDevice(Device):
         return amp_to_correct, ac_pos_correcting
 
     @Pyro4.expose
-    def correct_sensorless_all_modes(self, full_image_stack, full_zernike_applied, nollZernike, wavelength, NA, pixel_size, offset=None):
-        #May change this function later if we hand control of other cameras to the composite device
+    def correct_sensorless_all_modes(self, full_image_stack, full_zernike_applied, nollZernike, wavelength, NA,
+                                     pixel_size, offset=None):
+        # May change this function later if we hand control of other cameras to the composite device
         coef = aoAlg.get_zernike_modes_sensorless(full_image_stack, full_zernike_applied, nollZernike=nollZernike,
                                                   wavelength=wavelength, NA=NA, pixel_size=pixel_size)
         if np.any(offset) == None:
