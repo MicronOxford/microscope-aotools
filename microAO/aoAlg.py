@@ -74,9 +74,7 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     metric = np.count_nonzero(freq_above_noise)
     return metric
 
-def measure_contrast_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
-                            pixel_size=0.1193 * 10 ** -6):
-
+def measure_contrast_metric(image, **kwargs):
     return (np.max(image) - np.min(image))/(np.max(image) + np.min(image))
 
 metric_function = {
