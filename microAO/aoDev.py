@@ -703,6 +703,11 @@ class AdaptiveOpticsDevice(Device):
         return assay
 
     @Pyro4.expose
+    def measure_fourier_metric(self, image, **kwargs):
+        metric = aoAlg.measure_fourier_metric(image, **kwargs)
+        return metric
+
+    @Pyro4.expose
     def correct_sensorless_single_mode(self, image_stack, zernike_applied, nollIndex, offset=None):
         z_amps = np.zeros(self.numActuators)
         amp_to_correct = aoAlg.find_zernike_amp_sensorless(image_stack, zernike_applied)
