@@ -628,6 +628,7 @@ class AdaptiveOpticsDevice(Device):
         best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
 
         for ii in range(iterations):
+            self._logger.info("Correction iteration %i/%i" %(ii+1, iterations))
             interferogram = self.acquire()
             interferogram_unwrap = self.phaseunwrap(interferogram)
 
@@ -641,9 +642,10 @@ class AdaptiveOpticsDevice(Device):
 
             # We ignore piston, tip and tilt
             z_amps = z_amps * z_modes_ignore
-            flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
+            flat_actuators = self.set_phase((1.0 * z_amps), offset=best_flat_actuators)
 
             rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
+            self._logger.info("Current RMS error is %.5f. Best is %.5f" %(rms_error,best_rms_error))
             if rms_error < best_rms_error:
                 if no_discontinuities > (x * y) / 1000.0:
                     self._logger.info("Too many discontinuities in wavefront unwrap")
@@ -654,7 +656,6 @@ class AdaptiveOpticsDevice(Device):
                 self._logger.info("RMS wavefront error worse than before")
             else:
                 self._logger.info("No improvement in RMS wavefront error")
-                best_flat_actuators[:] = np.copy(flat_actuators)
 
         self.send(best_flat_actuators)
         return best_flat_actuators
@@ -703,8 +704,9 @@ class AdaptiveOpticsDevice(Device):
         return assay
 
     @Pyro4.expose
-    def measure_fourier_metric(self, image, **kwargs):
-        metric = aoAlg.measure_fourier_metric(image, **kwargs)
+    def measure_fourier_metric(self, image, wavelength=500 * 10 ** -9, NA=1.1,
+                               pixel_size=0.1193 * 10 ** -6):
+        metric = aoAlg.measure_fourier_metric(image, wavelength, NA, pixel_size)
         return metric
 
     @Pyro4.expose
