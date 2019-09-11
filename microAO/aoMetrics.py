@@ -19,6 +19,7 @@
 #Import required packs
 import numpy as np
 from scipy.signal import tukey
+from skimage.filters import threshold_otsu
 
 def make_ring_mask(size, inner_rad, outer_rad):
     radius = int(size[0] / 2)
@@ -33,7 +34,7 @@ def make_ring_mask(size, inner_rad, outer_rad):
     return ring_mask
 
 def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
-                            pixel_size=0.1193 * 10 ** -6):
+                            pixel_size=0.1193 * 10 ** -6, **kwargs):
     ray_crit_dist = (1.22 * wavelength) / (2 * NA)
     ray_crit_freq = 1 / ray_crit_dist
     max_freq = 1 / (2 * pixel_size)
@@ -65,8 +66,20 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 def measure_contrast_metric(image, **kwargs):
     return (np.max(image) - np.min(image))/(np.max(image) + np.min(image))
 
+def measure_gradient_metric(image, **kwargs):
+    image_gradient_x = np.gradient(image, axis=1)
+    image_gradient_y = np.gradient(image, axis=0)
+
+    grad_mask_x = image_gradient_x > (threshold_otsu(image_gradient_x) * 1.125)
+    grad_mask_y = image_gradient_y > (threshold_otsu(image_gradient_y) * 1.125)
+
+    correction_grad = np.sqrt((image_gradient_x * grad_mask_x) ** 2 + (image_gradient_y * grad_mask_y) ** 2)
+
+    metric = np.mean(correction_grad)
+    return metric
+
 def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
-                            pixel_size=0.1193 * 10 ** -6):
+                            pixel_size=0.1193 * 10 ** -6, **kwargs):
     ray_crit_dist = (1.22 * wavelength) / (2 * NA)
     ray_crit_freq = 1 / ray_crit_dist
     max_freq = 1 / (2 * pixel_size)
