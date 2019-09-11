@@ -28,9 +28,16 @@ import aotools
 import scipy.stats as stats
 from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
+import microAO.aoMetrics as metrics
 
 def gaussian_funcion(x, a, b, c, d):
     return a + (b - a) * np.exp((-(x - c) ** 2) / (2 * d ** 2))
+
+metric_function = {
+    'fourier': metrics.measure_fourier_metric,
+    'contrast': metrics.measure_contrast_metric,
+    'fourier_power': metrics.measure_fourier_power_metric,
+}
 
 class AdaptiveOpticsFunctions():
 
@@ -39,6 +46,7 @@ class AdaptiveOpticsFunctions():
         self.fft_filter = None
         self.controlMatrix = None
         self.OTF_ring_mask = None
+        self.metric = 'fourier'
 
     def set_mask(self,mask):
         self.mask = mask
@@ -55,6 +63,16 @@ class AdaptiveOpticsFunctions():
     def set_OTF_ring_mask(self, OTF_ring_mask):
         self.OTF_ring_mask = OTF_ring_mask
         return
+
+    def set_metric(self, metric):
+        if metric in metric_function.keys():
+            self.metric = metric
+        else:
+            raise Exception("Error: %s is not a supported image quality metric" %metric)
+        return
+
+    def get_metric(self):
+        return self.metric
 
     def make_mask(self, radius):
         diameter = radius * 2
@@ -301,54 +319,12 @@ class AdaptiveOpticsFunctions():
 
         return actuator_pos
 
-    def make_ring_mask(self, size, inner_rad, outer_rad):
-        radius = int(size[0] / 2)
-
-        outer_mask = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
-                np.arange(-radius, radius) ** 2)) < outer_rad
-
-        inner_mask_neg = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
-                np.arange(-radius, radius) ** 2)) < inner_rad
-        inner_mask = (inner_mask_neg - 1) * -1
-        ring_mask = outer_mask * inner_mask
-        return ring_mask
-
-    def measure_fourier_metric(self, image, wavelength=500 * 10 ** -9, NA=1.1,
-                               pixel_size=0.1193 * 10 ** -6):
-        ray_crit_dist = (1.22 * wavelength) / (2 * NA)
-        ray_crit_freq = 1 / ray_crit_dist
-        max_freq = 1 / (2 * pixel_size)
-        freq_ratio = ray_crit_freq / max_freq
-        OTF_outer_rad = (freq_ratio) * (np.shape(image)[0] / 2)
-
-        im_shift = np.fft.fftshift(image)
-        tukey_window = tukey(im_shift.shape[0], .10, True)
-        tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
-        im_tukey = im_shift * tukey_window
-        fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
-
-        fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
-
-        cent2corner = np.sqrt(2 * ((image.shape[0] / 2) ** 2))
-        rad_to_corner = cent2corner - OTF_outer_rad
-        noise_corner_size = int(np.round(np.sqrt((rad_to_corner ** 2) / 2) * 0.9))
-        noise = (fftarray_sq_log[0:noise_corner_size, 0:noise_corner_size] +
-                 fftarray_sq_log[0:noise_corner_size, -noise_corner_size:] +
-                 fftarray_sq_log[-noise_corner_size:, 0:noise_corner_size] +
-                 fftarray_sq_log[-noise_corner_size:, -noise_corner_size:]) / 4
-        threshold = np.mean(noise) * 1.125
-
-        ring_mask = self.make_ring_mask(np.shape(image),0.1 * OTF_outer_rad, OTF_outer_rad)
-        freq_above_noise = (fftarray_sq_log > threshold) * ring_mask
-        metric = np.count_nonzero(freq_above_noise)
-        return metric
-
     def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, wavelength=500 * 10 ** -9, NA=1.1,
                                pixel_size=0.1193 * 10 ** -6):
         metrics_measured = []
         for ii in range(image_stack.shape[0]):
             print("Measuring metric %i/%i" % (ii + 1, image_stack.shape[0]))
-            metric_measured = self.measure_fourier_metric(image_stack[ii, :, :], wavelength=wavelength, NA=NA,
+            metric_measured = metric_function[self.metric](image_stack[ii, :, :], wavelength=wavelength, NA=NA,
                                                           pixel_size=pixel_size)
             metrics_measured.append(metric_measured)
         metrics_measured = np.asarray(metrics_measured)
