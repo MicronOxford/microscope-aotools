@@ -38,6 +38,7 @@ metric_function = {
     'contrast': metrics.measure_contrast_metric,
     'fourier_power': metrics.measure_fourier_power_metric,
     'gradient': metrics.measure_gradient_metric,
+    'second_moment': metrics.measure_second_moment_metric,
 }
 
 class AdaptiveOpticsFunctions():
