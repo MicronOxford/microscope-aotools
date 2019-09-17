@@ -128,10 +128,10 @@ def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 
     ring_mask = make_ring_mask(np.shape(image),0, OTF_outer_rad)
 
-    x = range(image.shape[1])
-    x_p = x - ((image.shape[1] -1)/2)
-    x_prime = np.outer(np.ones(image.shape[1]),x_p)
-    y = range(image.shape[0])
+    x = np.linspace(0, image.shape[1] - 1, image.shape[1])
+    x_p = x - ((image.shape[1] - 1) / 2)
+    x_prime = np.outer(np.ones(image.shape[1]), x_p)
+    y = np.linspace(0, image.shape[0] - 1, image.shape[0])
     y_p = y - ((image.shape[0] - 1) / 2)
     y_prime = np.outer(y_p, np.ones(image.shape[0]))
     ramp_mask = x_prime**2 + y_prime**2
