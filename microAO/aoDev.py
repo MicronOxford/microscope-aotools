@@ -714,9 +714,8 @@ class AdaptiveOpticsDevice(Device):
         return assay
 
     @Pyro4.expose
-    def measure_fourier_metric(self, image, wavelength=500 * 10 ** -9, NA=1.1,
-                               pixel_size=0.1193 * 10 ** -6):
-        metric = aoAlg.measure_fourier_metric(image, wavelength, NA, pixel_size)
+    def measure_metric(self, image, **kwargs):
+        metric = aoAlg.measure_metric(image, **kwargs)
         return metric
 
     @Pyro4.expose
