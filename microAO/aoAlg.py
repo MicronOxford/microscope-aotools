@@ -322,8 +322,8 @@ class AdaptiveOpticsFunctions():
         return actuator_pos
 
     def measure_metric(self, image, **kwargs):
-        metric_function = metric_function[self.metric](image, **kwargs)
-        return metric_function
+        metric = metric_function[self.metric](image, **kwargs)
+        return metric
 
     def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, wavelength=500 * 10 ** -9, NA=1.1,
                                pixel_size=0.1193 * 10 ** -6):
