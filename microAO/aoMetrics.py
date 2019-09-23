@@ -136,5 +136,10 @@ def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     y_prime = np.outer(y_p, np.ones(image.shape[0]))
     ramp_mask = x_prime**2 + y_prime**2
 
-    metric = np.sum(ring_mask * fftarray_sq_log * ramp_mask)/np.sum(fftarray_sq_log)
+    radius = int(image.shape[0] / 2)
+    dist = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + np.arange(-radius, radius) ** 2)
+    gamma = abs(dist - np.max(dist * ring_mask)) * ring_mask
+    omega = 1 - np.exp(-(gamma / np.max(gamma)))
+
+    metric = np.sum(ring_mask * fftarray_sq_log * ramp_mask * omega)/np.sum(fftarray_sq_log)
     return metric
