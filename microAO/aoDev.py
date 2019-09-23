@@ -471,11 +471,19 @@ class AdaptiveOpticsDevice(Device):
         return zernike_amps
 
     @Pyro4.expose
-    def wavefront_rms_error(self):
-        phase_map = self.acquire_unwrapped_phase()
+    def wavefront_rms_error(self, phase_map=None):
+        if phase_map is None:
+            phase_map = self.acquire_unwrapped_phase()
         true_flat = np.zeros(np.shape(phase_map))
         rms_error = np.sqrt(np.mean((true_flat - phase_map) ** 2))
         return rms_error
+
+    @Pyro4.expose
+    def wavefront_strehl_ratio(self, phase_map=None):
+        if phase_map is None:
+            phase_map = self.acquire_unwrapped_phase()
+        strehl_ratio = np.exp(-np.mean((phase_map - np.mean(phase_map)) ** 2))
+        return strehl_ratio
 
     @Pyro4.expose
     def calibrate(self, numPokeSteps=5, noZernikeModes=69, threshold=0.005):
@@ -634,8 +642,7 @@ class AdaptiveOpticsDevice(Device):
         x, y = interferogram_unwrap.shape
         assert x == y
 
-        true_flat = np.zeros(np.shape(interferogram_unwrap))
-        best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
+        best_strehl = np.exp(-np.mean((interferogram_unwrap-np.mean(interferogram_unwrap))**2))
 
         for ii in range(iterations):
             self._logger.info("Correction iteration %i/%i" %(ii+1, iterations))
@@ -652,20 +659,20 @@ class AdaptiveOpticsDevice(Device):
 
             # We ignore piston, tip and tilt
             z_amps = z_amps * z_modes_ignore
-            flat_actuators = self.set_phase((1.0 * z_amps), offset=best_flat_actuators)
+            flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
 
-            rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
-            self._logger.info("Current RMS error is %.5f. Best is %.5f" %(rms_error,best_rms_error))
-            if rms_error < best_rms_error:
+            curr_strehl = np.exp(-np.mean((interferogram_unwrap-np.mean(interferogram_unwrap))**2))
+            self._logger.info("Current Strehl ratio is %.10f. Best is %.10f" % (curr_strehl, best_strehl))
+            if curr_strehl > best_strehl:
                 if no_discontinuities > (x * y) / 1000.0:
                     self._logger.info("Too many discontinuities in wavefront unwrap")
                 else:
                     best_flat_actuators = np.copy(flat_actuators)
-                    best_rms_error = np.copy(rms_error)
-            elif rms_error > best_rms_error:
-                self._logger.info("RMS wavefront error worse than before")
+                    best_strehl = np.copy(curr_strehl)
+            elif curr_strehl < best_strehl:
+                self._logger.info("Strehl ratio worse than before")
             else:
-                self._logger.info("No improvement in RMS wavefront error")
+                self._logger.info("No improvement in Strehl ratio")
 
         self.send(best_flat_actuators)
         return best_flat_actuators
