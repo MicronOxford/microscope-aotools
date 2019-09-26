@@ -152,11 +152,19 @@ class AdaptiveOpticsDevice(Device):
     def set_metric(self,metric):
         aoAlg.set_metric(metric)
 
+    @Pyro4.expose
     def get_metric(self):
         metric = aoAlg.get_metric()
         self._logger.info("Current image quality metric is: %s" %metric)
         return metric
 
+    @Pyro4.expose
+    def set_system_flat(self, system_flat):
+        self.flat_actuators_sys = system_flat
+
+    @Pyro4.expose
+    def get_system_flat(self):
+        return self.flat_actuators_sys
 
     @Pyro4.expose
     def send(self, values):
@@ -593,8 +601,8 @@ class AdaptiveOpticsDevice(Device):
 
         # Obtain actuator positions to correct for system aberrations
         # Ignore piston, tip, tilt and defocus
-        z_modes_ignore = z_modes_ignore = np.asarray(range(69)) > 3
-        self.flat_actuators_sys = self.flatten_phase(iterations=25, z_modes_ignore=z_modes_ignore)
+        z_modes_ignore = (np.asarray(range(69)) > 3) * (np.asarray(range(69)) < 25)
+        self.flat_actuators_sys = self.flatten_phase(iterations=5, z_modes_ignore=z_modes_ignore)
 
         return self.controlMatrix, self.flat_actuators_sys
 
@@ -605,7 +613,6 @@ class AdaptiveOpticsDevice(Device):
             assert np.any(self.roi) is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
-
         # Ensure a Fourier filter has been constructed
         if np.any(self.fft_filter) is None:
             try:
@@ -615,7 +622,6 @@ class AdaptiveOpticsDevice(Device):
                 raise
         else:
             pass
-
         # Check dimensions match
         numActuators, nzernike = np.shape(self.controlMatrix)
         try:
@@ -623,57 +629,47 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("Control Matrix dimension 0 axis and number of "
                             "actuators do not match.")
-
         # Set which modes to ignore while flattening
         if np.any(z_modes_ignore) is None:
             # By default, ignore piston, tip and tilt
             z_modes_ignore = np.asarray(range(69)) > 2
         else:
             pass
-
         best_flat_actuators = np.zeros(numActuators) + 0.5
         self.send(best_flat_actuators)
-
         # Get a measure of the RMS phase error of the uncorrected wavefront
         # The corrected wavefront should be better than this
         interferogram = self.acquire()
         interferogram_unwrap = self.phaseunwrap(interferogram)
-
         x, y = interferogram_unwrap.shape
         assert x == y
-
-        best_strehl = np.exp(-np.mean((interferogram_unwrap-np.mean(interferogram_unwrap))**2))
-
+        true_flat = np.zeros(np.shape(interferogram_unwrap))
+        best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
         for ii in range(iterations):
-            self._logger.info("Correction iteration %i/%i" %(ii+1, iterations))
+            self._logger.info("Correction iteration %i/%i" % (ii + 1, iterations))
             interferogram = self.acquire()
             interferogram_unwrap = self.phaseunwrap(interferogram)
-
             edge_mask = np.sqrt(
                 (np.arange(-x / 2.0, x / 2.0) ** 2).reshape((x, 1)) + (np.arange(-x / 2.0, x / 2.0) ** 2)) < (
                                 (x / 2.0) - 3)
             diff_image = abs(np.diff(np.diff(interferogram_unwrap, axis=1), axis=0)) * edge_mask[:-1, :-1]
             no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
-
             z_amps = self.getzernikemodes(interferogram_unwrap, nzernike)
-
             # We ignore piston, tip and tilt
             z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
-
-            curr_strehl = np.exp(-np.mean((interferogram_unwrap-np.mean(interferogram_unwrap))**2))
-            self._logger.info("Current Strehl ratio is %.10f. Best is %.10f" % (curr_strehl, best_strehl))
-            if curr_strehl > best_strehl:
+            rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
+            self._logger.info("Current RMS error is %.5f. Best is %.5f" % (rms_error, best_rms_error))
+            if rms_error < best_rms_error:
                 if no_discontinuities > (x * y) / 1000.0:
                     self._logger.info("Too many discontinuities in wavefront unwrap")
                 else:
                     best_flat_actuators = np.copy(flat_actuators)
-                    best_strehl = np.copy(curr_strehl)
-            elif curr_strehl < best_strehl:
-                self._logger.info("Strehl ratio worse than before")
+                    best_rms_error = np.copy(rms_error)
+            elif rms_error > best_rms_error:
+                self._logger.info("RMS wavefront error worse than before")
             else:
-                self._logger.info("No improvement in Strehl ratio")
-
+                self._logger.info("No improvement in RMS wavefront error")
         self.send(best_flat_actuators)
         return best_flat_actuators
 
