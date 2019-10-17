@@ -49,7 +49,7 @@ class AdaptiveOpticsDevice(Device):
         "START": TriggerMode.START,
     }
 
-    def __init__(self, wavefront_uri, mirror_uri, slm_uri, **kwargs):
+    def __init__(self, wavefront_uri, mirror_uri, **kwargs):
         # Init will fail if devices it depends on aren't already running, but
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
@@ -59,8 +59,6 @@ class AdaptiveOpticsDevice(Device):
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' % (mirror_uri[0].__name__,
                                                      mirror_uri[1], mirror_uri[2]))
-        # SLM device
-        self.slm = Pyro4.Proxy('PYRO:%s@%s:%d' % (slm_uri[0], slm_uri[1], slm_uri[2]))
         # self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
         self.numActuators = self.mirror.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
@@ -171,8 +169,8 @@ class AdaptiveOpticsDevice(Device):
         self._logger.info("Sending pattern to DM")
 
         ttype, tmode = self.get_trigger()
-        if ttype is not "SOFTWARE":
-            self.set_trigger(cp_ttype="SOFTWARE", cp_tmode="ONCE")
+        #if ttype is not "SOFTWARE":
+        #    self.set_trigger(cp_ttype="SOFTWARE", cp_tmode="ONCE")
 
         # Need to normalise patterns because general DM class expects 0-1 values
         values[values > 1.0] = 1.0
@@ -184,8 +182,8 @@ class AdaptiveOpticsDevice(Device):
             raise e
 
         self.last_actuator_values = values
-        if (ttype, tmode) is not self.get_trigger():
-            self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
+        #if (ttype, tmode) is not self.get_trigger():
+        #    self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
 
     @Pyro4.expose
     def get_last_actuator_values(self):
@@ -196,8 +194,8 @@ class AdaptiveOpticsDevice(Device):
         self._logger.info("Queuing patterns on DM")
 
         ttype, tmode = self.get_trigger()
-        if ttype is not "RISING_EDGE":
-            self.set_trigger(cp_ttype="RISING_EDGE", cp_tmode="ONCE")
+        #if ttype is not "RISING_EDGE":
+        #    self.set_trigger(cp_ttype="RISING_EDGE", cp_tmode="ONCE")
 
         # Need to normalise patterns because general DM class expects 0-1 values
         patterns[patterns > 1.0] = 1.0
@@ -209,8 +207,8 @@ class AdaptiveOpticsDevice(Device):
             raise e
 
         self.last_actuator_patterns = patterns
-        if (ttype, tmode) is not self.get_trigger():
-            self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
+        #if (ttype, tmode) is not self.get_trigger():
+        #    self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
 
     @Pyro4.expose
     def get_last_actuator_patterns(self):
@@ -722,7 +720,8 @@ class AdaptiveOpticsDevice(Device):
         return metric
 
     @Pyro4.expose
-    def correct_sensorless_single_mode(self, image_stack, zernike_applied, nollIndex, offset=None):
+    def correct_sensorless_single_mode(self, image_stack, zernike_applied, nollIndex, offset=None,
+                                       wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
         z_amps = np.zeros(self.numActuators)
         amp_to_correct = aoAlg.find_zernike_amp_sensorless(image_stack, zernike_applied)
         if abs(amp_to_correct) <= 2.5 * np.max(abs(zernike_applied)):
