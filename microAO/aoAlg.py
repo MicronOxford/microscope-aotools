@@ -305,8 +305,8 @@ class AdaptiveOpticsFunctions():
 
     def ac_pos_from_zernike(self, applied_z_modes, numActuators):
         if int(np.shape(applied_z_modes)[0]) < int(np.shape(self.controlMatrix)[1]):
-            pad_length = int(np.shape(applied_z_modes)[0]) - int(np.shape(self.controlMatrix)[1])
-            np.pad(applied_z_modes, (0,pad_length), 'constant')
+            pad_length = int(np.shape(self.controlMatrix)[1]) - int(np.shape(applied_z_modes)[0])
+            applied_z_modes = np.pad(applied_z_modes, (0,pad_length), 'constant')
         elif int(np.shape(applied_z_modes)[0]) > int(np.shape(self.controlMatrix)[1]):
             applied_z_modes = applied_z_modes[:int(np.shape(self.controlMatrix)[1])]
         else:
