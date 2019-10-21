@@ -359,7 +359,7 @@ class AdaptiveOpticsFunctions():
 
     def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike,
                                      wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
-        numMes = int(full_zernike_applied.shape[0]/nollZernike.shape[0])
+        numMes = full_zernike_applied.shape[0]/nollZernike.shape[0]
 
         coef = np.zeros(full_zernike_applied.shape[1])
         for ii in range(nollZernike.shape[0]):
