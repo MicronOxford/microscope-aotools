@@ -34,7 +34,6 @@ from microscope.devices import TriggerMode
 
 class AdaptiveOpticsDevice(Device):
     """Class for the adaptive optics device
-
     This class requires a mirror and a camera. Everything else is generated
     on or after __init__"""
 
@@ -49,7 +48,7 @@ class AdaptiveOpticsDevice(Device):
         "START": TriggerMode.START,
     }
 
-    def __init__(self, wavefront_uri, mirror_uri, **kwargs):
+    def __init__(self, wavefront_uri, mirror_uri, slm_uri, **kwargs):
         # Init will fail if devices it depends on aren't already running, but
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
@@ -59,6 +58,8 @@ class AdaptiveOpticsDevice(Device):
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' % (mirror_uri[0].__name__,
                                                      mirror_uri[1], mirror_uri[2]))
+        # SLM device
+        self.slm = Pyro4.Proxy('PYRO:%s@%s:%d' % (slm_uri[0], slm_uri[1], slm_uri[2]))
         # self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
         self.numActuators = self.mirror.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
@@ -169,8 +170,8 @@ class AdaptiveOpticsDevice(Device):
         self._logger.info("Sending pattern to DM")
 
         ttype, tmode = self.get_trigger()
-        #if ttype is not "SOFTWARE":
-        #    self.set_trigger(cp_ttype="SOFTWARE", cp_tmode="ONCE")
+        if ttype is not "SOFTWARE":
+            self.set_trigger(cp_ttype="SOFTWARE", cp_tmode="ONCE")
 
         # Need to normalise patterns because general DM class expects 0-1 values
         values[values > 1.0] = 1.0
@@ -182,8 +183,8 @@ class AdaptiveOpticsDevice(Device):
             raise e
 
         self.last_actuator_values = values
-        #if (ttype, tmode) is not self.get_trigger():
-        #    self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
+        if (ttype, tmode) is not self.get_trigger():
+            self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
 
     @Pyro4.expose
     def get_last_actuator_values(self):
@@ -194,8 +195,8 @@ class AdaptiveOpticsDevice(Device):
         self._logger.info("Queuing patterns on DM")
 
         ttype, tmode = self.get_trigger()
-        #if ttype is not "RISING_EDGE":
-        #    self.set_trigger(cp_ttype="RISING_EDGE", cp_tmode="ONCE")
+        if ttype is not "RISING_EDGE":
+            self.set_trigger(cp_ttype="RISING_EDGE", cp_tmode="ONCE")
 
         # Need to normalise patterns because general DM class expects 0-1 values
         patterns[patterns > 1.0] = 1.0
@@ -207,8 +208,8 @@ class AdaptiveOpticsDevice(Device):
             raise e
 
         self.last_actuator_patterns = patterns
-        #if (ttype, tmode) is not self.get_trigger():
-        #    self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
+        if (ttype, tmode) is not self.get_trigger():
+            self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
 
     @Pyro4.expose
     def get_last_actuator_patterns(self):
@@ -743,7 +744,7 @@ class AdaptiveOpticsDevice(Device):
         # May change this function later if we hand control of other cameras to the composite device
         coef = aoAlg.get_zernike_modes_sensorless(full_image_stack, full_zernike_applied, nollZernike=nollZernike,
                                                   wavelength=wavelength, NA=NA, pixel_size=pixel_size)
-        if np.any(offset) == None:
+        if np.any(offset) is None:
             ac_pos_correcting = self.set_phase(coef)
         else:
             ac_pos_correcting = self.set_phase(coef, offset=offset)
