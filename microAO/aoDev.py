@@ -725,7 +725,7 @@ class AdaptiveOpticsDevice(Device):
                                        wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
         z_amps = np.zeros(self.numActuators)
         amp_to_correct = aoAlg.find_zernike_amp_sensorless(image_stack, zernike_applied)
-        if abs(amp_to_correct) <= 2.5 * np.max(abs(zernike_applied)):
+        if abs(amp_to_correct) <= 1.5 * (np.max(zernike_applied)-np.min(zernike_applied)):
             self._logger.info("Amplitude calculated = %f" % amp_to_correct)
         else:
             self._logger.info("Amplitude calculated = %f" % amp_to_correct)
