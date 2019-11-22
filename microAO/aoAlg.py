@@ -30,8 +30,8 @@ from skimage.restoration import unwrap_phase
 from scipy.integrate import trapz
 import microAO.aoMetrics as metrics
 
-def gaussian_funcion(x, a, b, c, d):
-    return a + (b - a) * np.exp((-(x - c) ** 2) / (2 * d ** 2))
+def gaussian_funcion(x, offset, normalising, mean, std_dev):
+    return (offset - normalising) + (normalising * np.exp((-(x - mean) ** 2) / (2 * std_dev ** 2)))
 
 metric_function = {
     'fourier': metrics.measure_fourier_metric,
@@ -339,16 +339,15 @@ class AdaptiveOpticsFunctions():
 
         print("Fitting metric polynomial")
         try:
-            [offset, normalising, mean, std_dev], pcov = curve_fit(gaussian_funcion, zernike_amplitudes, metrics_measured)
+            [offset, normalising, mean, std_dev], pcov = curve_fit(gaussian_funcion, zernike_amplitudes, metrics_measured,
+                                                                   bounds=([np.NINF, 0, np.NINF, np.NINF],
+                                                                           [np.Inf, np.Inf, np.Inf, np.Inf]))
             print("Calculating amplitude present")
-            if (normalising - offset) < 0:
-                print("Fitting converged on minima. Defaulting to 0 amplitude.")
-                mean = 0
         except RuntimeError:
             max_from_mean_var = (np.max(metrics_measured) - np.min(metrics_measured))/np.mean(metrics_measured)
             if max_from_mean_var >= 0.1:
                 print("Could not accurately fit metric polynomial. Using maximum metric amplitude")
-                mean = zernike_amplitudes[metrics_measured==np.max(metrics_measured)]
+                mean = zernike_amplitudes[metrics_measured == np.max(metrics_measured)]
             else:
                 print("Could not accurately fit metric polynomial. Defaulting to 0 amplitude.")
                 mean = 0
