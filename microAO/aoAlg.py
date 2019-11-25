@@ -338,10 +338,12 @@ class AdaptiveOpticsFunctions():
         print("Metrics measured")
 
         print("Fitting metric polynomial")
+        z_l_bound = np.min(zernike_amplitudes) - (0.25 * (np.max(zernike_amplitudes) - np.min(zernike_amplitudes)))
+        z_u_bound = np.min(zernike_amplitudes) + (0.25 * (np.max(zernike_amplitudes) - np.min(zernike_amplitudes)))
         try:
             [offset, normalising, mean, std_dev], pcov = curve_fit(gaussian_funcion, zernike_amplitudes, metrics_measured,
-                                                                   bounds=([np.NINF, 0, np.NINF, np.NINF],
-                                                                           [np.Inf, np.Inf, np.Inf, np.Inf]))
+                                                                   bounds=([np.NINF, 0, z_l_bound, np.NINF],
+                                                                           [np.Inf, np.Inf, z_u_bound, np.Inf]))
             print("Calculating amplitude present")
         except RuntimeError:
             max_from_mean_var = (np.max(metrics_measured) - np.min(metrics_measured))/np.mean(metrics_measured)
