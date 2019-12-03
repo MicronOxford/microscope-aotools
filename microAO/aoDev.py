@@ -461,8 +461,8 @@ class AdaptiveOpticsDevice(Device):
             try:
                 test_image = self.acquire()
                 self.fft_filter = self.set_fourierfilter(test_image)
-            except:
-                raise
+            except Exception as e:
+                raise e
         else:
             pass
 
@@ -707,7 +707,7 @@ class AdaptiveOpticsDevice(Device):
             z_modes_ac0 = self.measure_zernike(modes_tba)
             applied_z_modes[ii] = 1
             self.set_phase(applied_z_modes)
-            self._logger.info("Appling Zernike mode %i/%i" % (ii, modes_tba))
+            self._logger.info("Appling Zernike mode %i/%i" % (ii+1, modes_tba))
             acquired_z_modes = self.measure_zernike(modes_tba)
             self._logger.info("Measured phase")
             assay[:, ii] = acquired_z_modes - z_modes_ac0
