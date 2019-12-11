@@ -109,11 +109,26 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
             fftarray_sq_log[-noise_corner_size:, 0:noise_corner_size] +
             fftarray_sq_log[-noise_corner_size:, -noise_corner_size:]) / 4
     threshold = np.mean(noise) * 1.125
+    
+    circ_mask = make_ring_mask(np.shape(image), 0, OTF_outer_rad)
 
-    ring_mask = make_ring_mask(np.shape(image),0.1 * OTF_outer_rad, OTF_outer_rad)
-    ramp_mask = np.sqrt(np.outer(np.linspace(-150,150,image.shape[0])**2,np.ones(image.shape[1]).T)+
-                        np.outer(np.ones(image.shape[0]), (np.linspace(-150,150,image.shape[1])**2).T))
-    freq_above_noise = (fftarray_sq_log > threshold) * ring_mask * ramp_mask
+    x = np.linspace(0, image.shape[1] - 1, image.shape[1])
+    x_p = x - ((image.shape[1] - 1) / 2)
+    x_prime = np.outer(np.ones(image.shape[1]), x_p)
+    y = np.linspace(0, image.shape[0] - 1, image.shape[0])
+    y_p = y - ((image.shape[0] - 1) / 2)
+    y_prime = np.outer(y_p, np.ones(image.shape[0]))
+    ramp_mask = x_prime ** 2 + y_prime ** 2
+
+    radius = int(image.shape[0] / 2)
+    dist = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + np.arange(-radius, radius) ** 2)
+    gamma = abs(dist - np.max(dist * circ_mask)) * circ_mask
+    omega = 1 - np.exp(-(gamma / np.max(gamma)))
+
+    high_f_amp_mask = 100 * (ramp_mask * omega)/np.max(ramp_mask * gamma)
+
+    ring_mask = make_ring_mask(np.shape(image), 0.1 * OTF_outer_rad, OTF_outer_rad)
+    freq_above_noise = (fftarray_sq_log > threshold) * ring_mask * high_f_amp_mask
     metric = np.sum(freq_above_noise)
     return metric
 
