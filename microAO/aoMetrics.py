@@ -91,7 +91,7 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     ray_crit_freq = 1 / ray_crit_dist
     max_freq = 1 / (2 * pixel_size)
     freq_ratio = ray_crit_freq / max_freq
-    OTF_outer_rad = (freq_ratio) * (np.shape(image)[0] / 2)
+    OTF_outer_rad = freq_ratio * (np.shape(image)[0] / 2)
 
     im_shift = np.fft.fftshift(image)
     tukey_window = tukey(im_shift.shape[0], .10, True)
@@ -109,7 +109,7 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
             fftarray_sq_log[-noise_corner_size:, 0:noise_corner_size] +
             fftarray_sq_log[-noise_corner_size:, -noise_corner_size:]) / 4
     threshold = np.mean(noise) * 1.125
-    
+
     circ_mask = make_ring_mask(np.shape(image), 0, OTF_outer_rad)
 
     x = np.linspace(0, image.shape[1] - 1, image.shape[1])
@@ -125,7 +125,7 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     gamma = abs(dist - np.max(dist * circ_mask)) * circ_mask
     omega = 1 - np.exp(-(gamma / np.max(gamma)))
 
-    high_f_amp_mask = 100 * (ramp_mask * omega)/np.max(ramp_mask * gamma)
+    high_f_amp_mask = 100 * (ramp_mask * omega)/np.max(ramp_mask * omega)
 
     ring_mask = make_ring_mask(np.shape(image), 0.1 * OTF_outer_rad, OTF_outer_rad)
     freq_above_noise = (fftarray_sq_log > threshold) * ring_mask * high_f_amp_mask
