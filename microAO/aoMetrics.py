@@ -122,8 +122,8 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 
     radius = int(image.shape[0] / 2)
     dist = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + np.arange(-radius, radius) ** 2)
-    gamma = abs(dist - np.max(dist * circ_mask)) * circ_mask
-    omega = 1 - np.exp(-(gamma / np.max(gamma)))
+    gamma = abs(dist - OTF_outer_rad) * circ_mask
+    omega = 1 - np.exp(-(gamma / OTF_outer_rad))
 
     high_f_amp_mask = 100 * (ramp_mask * omega)/np.max(ramp_mask * omega)
 
@@ -160,8 +160,8 @@ def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 
     radius = int(image.shape[0] / 2)
     dist = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + np.arange(-radius, radius) ** 2)
-    gamma = abs(dist - np.max(dist * ring_mask)) * ring_mask
-    omega = 1 - np.exp(-(gamma / np.max(gamma)))
+    gamma = abs(dist - OTF_outer_rad) * ring_mask
+    omega = 1 - np.exp(-(gamma / OTF_outer_rad))
 
     metric = np.sum(ring_mask * fftarray_sq_log * ramp_mask * omega)/np.sum(fftarray_sq_log)
     return metric
