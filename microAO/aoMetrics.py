@@ -42,9 +42,13 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     OTF_outer_rad = (freq_ratio) * (np.shape(image)[0] / 2)
 
     im_shift = np.fft.fftshift(image)
-    tukey_window = tukey(im_shift.shape[0], .10, True)
+    tukey_window = tukey(np.max(im_shift.shape), .10, True)
     tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
-    im_tukey = im_shift * tukey_window
+    tukey_window_crop = tukey_window[tukey_window.shape[0] // 2 - im_shift.shape[0] // 2:
+                                     tukey_window.shape[0] // 2 + im_shift.shape[0] // 2,
+                        tukey_window.shape[1] // 2 - im_shift.shape[1] // 2:
+                        tukey_window.shape[1] // 2 + im_shift.shape[1] // 2]
+    im_tukey = im_shift * tukey_window_crop
     fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
 
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
@@ -58,7 +62,7 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
             fftarray_sq_log[-noise_corner_size:, -noise_corner_size:]) / 4
     threshold = np.mean(noise) * 1.125
 
-    ring_mask = make_ring_mask(np.shape(image),0.1 * OTF_outer_rad, OTF_outer_rad)
+    ring_mask = make_ring_mask(np.shape(image), 0.1 * OTF_outer_rad, OTF_outer_rad)
     freq_above_noise = (fftarray_sq_log > threshold) * ring_mask
     metric = np.count_nonzero(freq_above_noise)
     return metric
@@ -94,9 +98,13 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     OTF_outer_rad = freq_ratio * (np.shape(image)[0] / 2)
 
     im_shift = np.fft.fftshift(image)
-    tukey_window = tukey(im_shift.shape[0], .10, True)
+    tukey_window = tukey(np.max(im_shift.shape), .10, True)
     tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
-    im_tukey = im_shift * tukey_window
+    tukey_window_crop = tukey_window[tukey_window.shape[0]//2 - im_shift.shape[0]//2:
+                                     tukey_window.shape[0]//2 + im_shift.shape[0]//2,
+                        tukey_window.shape[1]//2 - im_shift.shape[1]//2:
+                        tukey_window.shape[1]//2 + im_shift.shape[1]//2]
+    im_tukey = im_shift * tukey_window_crop
     fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
 
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
@@ -112,16 +120,11 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 
     circ_mask = make_ring_mask(np.shape(image), 0, OTF_outer_rad)
 
-    x = np.linspace(0, image.shape[1] - 1, image.shape[1])
-    x_p = x - ((image.shape[1] - 1) / 2)
-    x_prime = np.outer(np.ones(image.shape[1]), x_p)
-    y = np.linspace(0, image.shape[0] - 1, image.shape[0])
-    y_p = y - ((image.shape[0] - 1) / 2)
-    y_prime = np.outer(y_p, np.ones(image.shape[0]))
-    ramp_mask = x_prime ** 2 + y_prime ** 2
+    rad_y = int(image.shape[0] / 2)
+    rad_x = int(image.shape[1] / 2)
+    ramp_mask = (np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1)) + np.arange(-rad_x, rad_x) ** 2
 
-    radius = int(image.shape[0] / 2)
-    dist = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + np.arange(-radius, radius) ** 2)
+    dist = np.sqrt(ramp_mask)
     gamma = abs(dist - OTF_outer_rad) * circ_mask
     omega = 1 - np.exp(-(gamma / OTF_outer_rad))
 
@@ -141,25 +144,24 @@ def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     OTF_outer_rad = (freq_ratio) * (np.shape(image)[0] / 2)
 
     im_shift = np.fft.fftshift(image)
-    tukey_window = tukey(im_shift.shape[0], .10, True)
+    tukey_window = tukey(np.max(im_shift.shape), .10, True)
     tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
-    im_tukey = im_shift * tukey_window
+    tukey_window_crop = tukey_window[tukey_window.shape[0] // 2 - im_shift.shape[0] // 2:
+                                     tukey_window.shape[0] // 2 + im_shift.shape[0] // 2,
+                        tukey_window.shape[1] // 2 - im_shift.shape[1] // 2:
+                        tukey_window.shape[1] // 2 + im_shift.shape[1] // 2]
+    im_tukey = im_shift * tukey_window_crop
     fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
 
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
-    ring_mask = make_ring_mask(np.shape(image),0, OTF_outer_rad)
+    ring_mask = make_ring_mask(np.shape(image), 0, OTF_outer_rad)
 
-    x = np.linspace(0, image.shape[1] - 1, image.shape[1])
-    x_p = x - ((image.shape[1] - 1) / 2)
-    x_prime = np.outer(np.ones(image.shape[1]), x_p)
-    y = np.linspace(0, image.shape[0] - 1, image.shape[0])
-    y_p = y - ((image.shape[0] - 1) / 2)
-    y_prime = np.outer(y_p, np.ones(image.shape[0]))
-    ramp_mask = x_prime**2 + y_prime**2
+    rad_y = int(image.shape[0] / 2)
+    rad_x = int(image.shape[1] / 2)
+    ramp_mask = (np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1)) + np.arange(-rad_x, rad_x) ** 2
 
-    radius = int(image.shape[0] / 2)
-    dist = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + np.arange(-radius, radius) ** 2)
+    dist = np.sqrt(ramp_mask)
     gamma = abs(dist - OTF_outer_rad) * ring_mask
     omega = 1 - np.exp(-(gamma / OTF_outer_rad))
 
