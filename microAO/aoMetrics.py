@@ -21,17 +21,26 @@ import numpy as np
 from scipy.signal import tukey
 from skimage.filters import threshold_otsu
 
-def make_ring_mask(size, inner_rad, outer_rad):
-    radius = int(size[0] / 2)
+def make_OTF_mask(size, y_limits, x_limits):
+    inner_y_rad = y_limits[0]
+    outer_y_rad = y_limits[1]
+    inner_x_rad = x_limits[0]
+    outer_x_rad = x_limits[1]
 
-    outer_mask = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
-            np.arange(-radius, radius) ** 2)) < outer_rad
+    rad_y = size[0] // 2
+    rad_x = size[1] // 2
 
-    inner_mask_neg = np.sqrt((np.arange(-radius, radius) ** 2).reshape((radius * 2, 1)) + (
-            np.arange(-radius, radius) ** 2)) < inner_rad
-    inner_mask = (inner_mask_neg - 1) * -1
-    ring_mask = outer_mask * inner_mask
-    return ring_mask
+    outer_mask = np.sqrt(((np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1))/outer_y_rad**2) +
+                         (np.arange(-rad_x, rad_x) ** 2)/outer_x_rad**2) < 1
+
+    if inner_x_rad != 0 and inner_y_rad != 0:
+        inner_mask_neg = np.sqrt(((np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1))/inner_y_rad**2) +
+                             (np.arange(-rad_x, rad_x) ** 2)/inner_x_rad**2) < 1
+        inner_mask = (inner_mask_neg - 1) * -1
+    else:
+        inner_mask = np.ones(size)
+    OTF_mask = outer_mask * inner_mask
+    return OTF_mask
 
 def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
                             pixel_size=0.1193 * 10 ** -6, **kwargs):
@@ -39,7 +48,8 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     ray_crit_freq = 1 / ray_crit_dist
     max_freq = 1 / (2 * pixel_size)
     freq_ratio = ray_crit_freq / max_freq
-    OTF_outer_rad = (freq_ratio) * (np.shape(image)[0] / 2)
+    OTF_outer_y_rad = (freq_ratio) * (np.shape(image)[0] / 2)
+    OTF_outer_x_rad = (freq_ratio) * (np.shape(image)[1] / 2)
 
     im_shift = np.fft.fftshift(image)
     tukey_window = tukey(np.max(im_shift.shape), .10, True)
@@ -53,17 +63,12 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
-    cent2corner = np.sqrt(2 * ((image.shape[0] / 2) ** 2))
-    rad_to_corner = cent2corner - OTF_outer_rad
-    noise_corner_size = int(np.round(np.sqrt((rad_to_corner ** 2) / 2) * 0.9))
-    noise = (fftarray_sq_log[0:noise_corner_size, 0:noise_corner_size] +
-            fftarray_sq_log[0:noise_corner_size, -noise_corner_size:] +
-            fftarray_sq_log[-noise_corner_size:, 0:noise_corner_size] +
-            fftarray_sq_log[-noise_corner_size:, -noise_corner_size:]) / 4
-    threshold = np.mean(noise) * 1.125
+    noise_mask = make_OTF_mask(np.shape(image), (0, 1.1 * OTF_outer_y_rad), (0, 1.1 * OTF_outer_x_rad))
+    threshold = np.mean(fftarray_sq_log[noise_mask == 0]) * 1.125
 
-    ring_mask = make_ring_mask(np.shape(image), 0.1 * OTF_outer_rad, OTF_outer_rad)
-    freq_above_noise = (fftarray_sq_log > threshold) * ring_mask
+    OTF_mask = make_OTF_mask(np.shape(image), (0.1 * OTF_outer_y_rad, OTF_outer_y_rad),
+                              (0.1 * OTF_outer_x_rad, OTF_outer_x_rad))
+    freq_above_noise = (fftarray_sq_log > threshold) * OTF_mask
     metric = np.count_nonzero(freq_above_noise)
     return metric
 
@@ -95,7 +100,8 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     ray_crit_freq = 1 / ray_crit_dist
     max_freq = 1 / (2 * pixel_size)
     freq_ratio = ray_crit_freq / max_freq
-    OTF_outer_rad = freq_ratio * (np.shape(image)[0] / 2)
+    OTF_outer_y_rad = (freq_ratio) * (np.shape(image)[0] / 2)
+    OTF_outer_x_rad = (freq_ratio) * (np.shape(image)[1] / 2)
 
     im_shift = np.fft.fftshift(image)
     tukey_window = tukey(np.max(im_shift.shape), .10, True)
@@ -109,29 +115,26 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
-    cent2corner = np.sqrt(2 * ((image.shape[0] / 2) ** 2))
-    rad_to_corner = cent2corner - OTF_outer_rad
-    noise_corner_size = int(np.round(np.sqrt((rad_to_corner ** 2) / 2) * 0.9))
-    noise = (fftarray_sq_log[0:noise_corner_size, 0:noise_corner_size] +
-            fftarray_sq_log[0:noise_corner_size, -noise_corner_size:] +
-            fftarray_sq_log[-noise_corner_size:, 0:noise_corner_size] +
-            fftarray_sq_log[-noise_corner_size:, -noise_corner_size:]) / 4
-    threshold = np.mean(noise) * 1.125
+    noise_mask = make_OTF_mask(np.shape(image), (0, 1.1 * OTF_outer_y_rad), (0, 1.1 * OTF_outer_x_rad))
+    threshold = np.mean(fftarray_sq_log[noise_mask == 0]) * 1.125
 
-    circ_mask = make_ring_mask(np.shape(image), 0, OTF_outer_rad)
+    OTF_mask = make_OTF_mask(np.shape(image), (0.1 * OTF_outer_y_rad, OTF_outer_y_rad),
+                             (0.1 * OTF_outer_x_rad, OTF_outer_x_rad))
 
     rad_y = int(image.shape[0] / 2)
     rad_x = int(image.shape[1] / 2)
-    ramp_mask = (np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1)) + np.arange(-rad_x, rad_x) ** 2
+    ramp_mask = ((np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1))/OTF_outer_y_rad**2) + \
+                (np.arange(-rad_x, rad_x) ** 2)/OTF_outer_x_rad**2
 
     dist = np.sqrt(ramp_mask)
-    gamma = abs(dist - OTF_outer_rad) * circ_mask
-    omega = 1 - np.exp(-(gamma / OTF_outer_rad))
+    gamma = abs(dist - 1) * OTF_mask
+    omega = 1 - np.exp(-(gamma))
 
     high_f_amp_mask = 100 * (ramp_mask * omega)/np.max(ramp_mask * omega)
 
-    ring_mask = make_ring_mask(np.shape(image), 0.1 * OTF_outer_rad, OTF_outer_rad)
-    freq_above_noise = (fftarray_sq_log > threshold) * ring_mask * high_f_amp_mask
+    OTF_mask = make_OTF_mask(np.shape(image), (0.1 * OTF_outer_y_rad, OTF_outer_y_rad),
+                             (0.1 * OTF_outer_x_rad, OTF_outer_x_rad))
+    freq_above_noise = (fftarray_sq_log > threshold) * OTF_mask * high_f_amp_mask
     metric = np.sum(freq_above_noise)
     return metric
 
@@ -141,7 +144,8 @@ def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     ray_crit_freq = 1 / ray_crit_dist
     max_freq = 1 / (2 * pixel_size)
     freq_ratio = ray_crit_freq / max_freq
-    OTF_outer_rad = (freq_ratio) * (np.shape(image)[0] / 2)
+    OTF_outer_y_rad = (freq_ratio) * (np.shape(image)[0] / 2)
+    OTF_outer_x_rad = (freq_ratio) * (np.shape(image)[1] / 2)
 
     im_shift = np.fft.fftshift(image)
     tukey_window = tukey(np.max(im_shift.shape), .10, True)
@@ -155,15 +159,15 @@ def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
-    ring_mask = make_ring_mask(np.shape(image), 0, OTF_outer_rad)
+    ring_mask = make_OTF_mask(np.shape(image), (0, OTF_outer_y_rad), (0, OTF_outer_x_rad))
 
     rad_y = int(image.shape[0] / 2)
     rad_x = int(image.shape[1] / 2)
     ramp_mask = (np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1)) + np.arange(-rad_x, rad_x) ** 2
 
     dist = np.sqrt(ramp_mask)
-    gamma = abs(dist - OTF_outer_rad) * ring_mask
-    omega = 1 - np.exp(-(gamma / OTF_outer_rad))
+    gamma = abs(dist - 1) * ring_mask
+    omega = 1 - np.exp(-(gamma))
 
     metric = np.sum(ring_mask * fftarray_sq_log * ramp_mask * omega)/np.sum(fftarray_sq_log)
     return metric
