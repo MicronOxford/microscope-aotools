@@ -66,11 +66,10 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 def measure_contrast_metric(image, no_intensities = 100, **kwargs):
     flattened_image = image.flatten()
 
-    min_ind = max(1, (flattened_image.shape[0]-no_intensities))
-    max_ind = flattened_image.shape[0]
+    flattened_image_list = flattened_image.tolist()
 
-    mean_top = np.mean(flattened_image[np.argsort(flattened_image)[min_ind:max_ind]])
-    mean_bottom = np.mean(flattened_image[np.argsort(flattened_image)[:min_ind]])
+    mean_top = np.mean(flattened_image_list[-no_intensities:])
+    mean_bottom = np.mean(flattened_image[:no_intensities])
     return mean_top/mean_bottom
 
 def measure_gradient_metric(image, **kwargs):
