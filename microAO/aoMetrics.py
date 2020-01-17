@@ -67,6 +67,7 @@ def measure_contrast_metric(image, no_intensities = 100, **kwargs):
     flattened_image = image.flatten()
 
     flattened_image_list = flattened_image.tolist()
+    flattened_image_list.sort()
 
     mean_top = np.mean(flattened_image_list[-no_intensities:])
     mean_bottom = np.mean(flattened_image[:no_intensities])
