@@ -27,6 +27,9 @@ from skimage.restoration import unwrap_phase
 
 class TestAOFunctions(unittest.TestCase):
 
+  def _gaussian_funcion(self, x, offset, normalising, mean, std_dev):
+    return (offset - normalising) + (normalising * np.exp((-(x - mean) ** 2) / (2 * std_dev ** 2)))
+
   def _construct_interferogram(self):
     mid_y = self.radius
     mid_x = self.radius
@@ -64,6 +67,20 @@ class TestAOFunctions(unittest.TestCase):
                (self.radius-self.true_x_freq+int(gauss_dim/2))] = gauss
     return fft_filter
 
+  def _construct_single_mode_measurements(self, shape, z_min, z_max, num_mes, true_max):
+    stack = np.ones((num_mes, shape[0], shape[1]))
+    z_measurements = np.linspace(z_min, z_max, num_mes)
+
+    min_y = (stack.shape[1] // 2) - int(stack.shape[1] * 0.2)
+    max_y = (stack.shape[1] // 2) + int(stack.shape[1] * 0.2)
+    min_x = (stack.shape[2] // 2) - int(stack.shape[2] * 0.2)
+    max_x = (stack.shape[2] // 2) + int(stack.shape[2] * 0.2)
+    for ii in range(num_mes):
+      stack[ii, min_y:max_y, min_x:max_x] = self._gaussian_funcion(z_measurements[ii],
+                                                   100, 100, true_max, ((z_max-z_min)/4))
+
+    return stack
+
   def setUp(self):
     #Initialize necessary variables
     self.planned_n_actuators = 10
@@ -87,6 +104,14 @@ class TestAOFunctions(unittest.TestCase):
     self.true_contrast_metric = 771000
     self.true_gradient_metric = 0.00537
     self.true_second_moment_metric = 83
+
+    self.true_num_mes = 15
+    self.true_z_min = -1
+    self.true_z_max = 1
+    self.true_max_mode_z = 0.5
+    self.true_single_mode_measurements = self._construct_single_mode_measurements((100, 100), self.true_z_min,
+                                                                                  self.true_z_max, self.true_num_mes,
+                                                                                  self.true_max_mode_z)
 
   def test_make_mask(self):
     test_mask = self.AO_func.make_mask(self.radius)
@@ -202,8 +227,12 @@ class TestAOFunctions(unittest.TestCase):
     test_second_moment_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
     np.testing.assert_almost_equal(test_second_moment_metric / self.true_second_moment_metric, 1, decimal=2)
 
-  def find_zernike_amp_sensorless(self):
-    pass
+  def test_find_zernike_amp_sensorless(self):
+    self.AO_func.set_metric('contrast')
+    zernike_amplitudes = np.linspace(self.true_z_min, self.true_z_max, self.true_num_mes,)
+    amplitude_present = self.AO_func.find_zernike_amp_sensorless(self.true_single_mode_measurements,
+                                                                 zernike_amplitudes)
+    np.testing.assert_almost_equal(-1 * amplitude_present, self.true_max_mode_z, decimal=5)
 
   def get_zernike_modes_sensorless(self):
     pass
