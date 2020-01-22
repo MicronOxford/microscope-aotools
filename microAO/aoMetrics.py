@@ -21,26 +21,18 @@ import numpy as np
 from scipy.signal import tukey
 from skimage.filters import threshold_otsu
 
-def make_OTF_mask(size, y_limits, x_limits):
-    inner_y_rad = y_limits[0]
-    outer_y_rad = y_limits[1]
-    inner_x_rad = x_limits[0]
-    outer_x_rad = x_limits[1]
+def make_OTF_mask(size, inner_rad, outer_rad):
+    rad_y = int(size[0] / 2)
+    rad_x = int(size[1] / 2)
 
-    rad_y = size[0] // 2
-    rad_x = size[1] // 2
+    outer_mask = np.sqrt((np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1)) +
+                         np.arange(-rad_x, rad_x) ** 2) < outer_rad
 
-    outer_mask = np.sqrt(((np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1))/outer_y_rad**2) +
-                         (np.arange(-rad_x, rad_x) ** 2)/outer_x_rad**2) < 1
-
-    if inner_x_rad != 0 and inner_y_rad != 0:
-        inner_mask_neg = np.sqrt(((np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1))/inner_y_rad**2) +
-                             (np.arange(-rad_x, rad_x) ** 2)/inner_x_rad**2) < 1
-        inner_mask = (inner_mask_neg - 1) * -1
-    else:
-        inner_mask = np.ones(size)
-    OTF_mask = outer_mask * inner_mask
-    return OTF_mask
+    inner_mask_neg = np.sqrt((np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1)) +
+                         np.arange(-rad_x, rad_x) ** 2) < inner_rad
+    inner_mask = (inner_mask_neg - 1) * -1
+    ring_mask = outer_mask * inner_mask
+    return ring_mask
 
 def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
                             pixel_size=0.1193 * 10 ** -6, **kwargs):
@@ -66,8 +58,7 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     noise_mask = make_OTF_mask(np.shape(image), (0, 1.1 * OTF_outer_y_rad), (0, 1.1 * OTF_outer_x_rad))
     threshold = np.mean(fftarray_sq_log[noise_mask == 0]) * 1.125
 
-    OTF_mask = make_OTF_mask(np.shape(image), (0.1 * OTF_outer_y_rad, OTF_outer_y_rad),
-                              (0.1 * OTF_outer_x_rad, OTF_outer_x_rad))
+    OTF_mask = make_OTF_mask(np.shape(image), 0.1 * OTF_outer_y_rad, OTF_outer_y_rad)
     freq_above_noise = (fftarray_sq_log > threshold) * OTF_mask
     metric = np.count_nonzero(freq_above_noise)
     return metric
