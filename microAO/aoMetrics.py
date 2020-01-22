@@ -45,10 +45,10 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     im_shift = np.fft.fftshift(image)
     tukey_window = tukey(np.max(im_shift.shape), .10, True)
     tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
-    tukey_window_crop = tukey_window[tukey_window.shape[0] // 2 - im_shift.shape[0] // 2:
-                                     tukey_window.shape[0] // 2 + im_shift.shape[0] // 2,
-                        tukey_window.shape[1] // 2 - im_shift.shape[1] // 2:
-                        tukey_window.shape[1] // 2 + im_shift.shape[1] // 2]
+    tukey_window_crop = tukey_window[int(tukey_window.shape[0] / 2 - im_shift.shape[0] / 2):
+                                     int(tukey_window.shape[0] / 2 + im_shift.shape[0] / 2),
+                        int(tukey_window.shape[1] / 2 - im_shift.shape[1] / 2):
+                        int(tukey_window.shape[1] / 2 + im_shift.shape[1] / 2)]
     im_tukey = im_shift * tukey_window_crop
     fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
 
@@ -95,10 +95,10 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     im_shift = np.fft.fftshift(image)
     tukey_window = tukey(np.max(im_shift.shape), .10, True)
     tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
-    tukey_window_crop = tukey_window[tukey_window.shape[0]//2 - im_shift.shape[0]//2:
-                                     tukey_window.shape[0]//2 + im_shift.shape[0]//2,
-                        tukey_window.shape[1]//2 - im_shift.shape[1]//2:
-                        tukey_window.shape[1]//2 + im_shift.shape[1]//2]
+    tukey_window_crop = tukey_window[int(tukey_window.shape[0] / 2 - im_shift.shape[0] / 2):
+                                     int(tukey_window.shape[0] / 2 + im_shift.shape[0] / 2),
+                        int(tukey_window.shape[1] / 2 - im_shift.shape[1] / 2):
+                        int(tukey_window.shape[1] / 2 + im_shift.shape[1] / 2)]
     im_tukey = im_shift * tukey_window_crop
     fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
 
@@ -142,10 +142,10 @@ def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     im_shift = np.fft.fftshift(image)
     tukey_window = tukey(np.max(im_shift.shape), .10, True)
     tukey_window = np.fft.fftshift(tukey_window.reshape(1, -1) * tukey_window.reshape(-1, 1))
-    tukey_window_crop = tukey_window[tukey_window.shape[0] // 2 - im_shift.shape[0] // 2:
-                                     tukey_window.shape[0] // 2 + im_shift.shape[0] // 2,
-                        tukey_window.shape[1] // 2 - im_shift.shape[1] // 2:
-                        tukey_window.shape[1] // 2 + im_shift.shape[1] // 2]
+    tukey_window_crop = tukey_window[int(tukey_window.shape[0] / 2 - im_shift.shape[0] / 2):
+                                     int(tukey_window.shape[0] / 2 + im_shift.shape[0] / 2),
+                        int(tukey_window.shape[1] / 2 - im_shift.shape[1] / 2):
+                        int(tukey_window.shape[1] / 2 + im_shift.shape[1] / 2)]
     im_tukey = im_shift * tukey_window_crop
     fftarray = np.fft.fftshift(np.fft.fft2(im_tukey))
 
