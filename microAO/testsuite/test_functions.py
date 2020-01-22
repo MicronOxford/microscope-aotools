@@ -80,6 +80,13 @@ class TestAOFunctions(unittest.TestCase):
     self.AO_func = AO.AdaptiveOpticsFunctions()
     self.AO_mask = self.AO_func.make_mask(self.radius)
     self.AO_fft_filter = self.AO_func.make_fft_filter(image = self.test_inter, region=None)
+    self.true_ac_applied = np.linspace(0, 1, self.nzernike)
+    self.true_metric_single_measure = np.outer(gaussian(100,10),gaussian(100,10).T)
+    self.true_fourier_metric = 5700
+    self.true_fourier_power_metric = 373000
+    self.true_contrast_metric = 771000
+    self.true_gradient_metric = 0.00537
+    self.true_second_moment_metric = 83
 
   def test_make_mask(self):
     test_mask = self.AO_func.make_mask(self.radius)
@@ -165,10 +172,35 @@ class TestAOFunctions(unittest.TestCase):
     np.testing.assert_array_equal(test_control_matrix,self.true_control_matrix)
 
   def test_ac_pos_from_zernike(self):
-    pass
+    self.AO_func.set_controlMatrix(self.true_control_matrix)
+    test_zernike_applied = np.linspace(0,1,self.nzernike)
+    test_ac_pos = self.AO_func.ac_pos_from_zernike(test_zernike_applied,self.planned_n_actuators)
+    np.testing.assert_array_equal(test_ac_pos,self.true_ac_applied)
 
-  def fourier_metric(self):
-    pass
+  def test_measure_metric_fourier(self):
+    self.AO_func.set_metric('fourier')
+    test_fourier_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
+    np.testing.assert_almost_equal(test_fourier_metric/self.true_fourier_metric, 1, decimal=2)
+
+  def test_measure_metric_fourier_power(self):
+    self.AO_func.set_metric('fourier_power')
+    test_fourier_power_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
+    np.testing.assert_almost_equal(test_fourier_power_metric / self.true_fourier_power_metric, 1, decimal=2)
+
+  def test_measure_metric_contrast(self):
+    self.AO_func.set_metric('contrast')
+    test_contrast_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
+    np.testing.assert_almost_equal(test_contrast_metric / self.true_contrast_metric, 1, decimal=2)
+
+  def test_measure_metric_gradient(self):
+    self.AO_func.set_metric('gradient')
+    test_gradient_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
+    np.testing.assert_almost_equal(test_gradient_metric / self.true_gradient_metric, 1, decimal=2)
+
+  def test_measure_metric_second_moment(self):
+    self.AO_func.set_metric('second_moment')
+    test_second_moment_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
+    np.testing.assert_almost_equal(test_second_moment_metric / self.true_second_moment_metric, 1, decimal=2)
 
   def find_zernike_amp_sensorless(self):
     pass
