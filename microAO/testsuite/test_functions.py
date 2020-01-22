@@ -83,10 +83,10 @@ class TestAOFunctions(unittest.TestCase):
     self.true_ac_applied = np.linspace(0, 1, self.nzernike)
     self.true_metric_single_measure = np.outer(gaussian(100,10),gaussian(100,10).T)
     self.true_fourier_metric = 5700
-    self.true_fourier_power_metric = 390000
+    self.true_fourier_power_metric = 373000
     self.true_contrast_metric = 771000
     self.true_gradient_metric = 0.00537
-    self.true_second_moment_metric = 516
+    self.true_second_moment_metric = 83
 
   def test_make_mask(self):
     test_mask = self.AO_func.make_mask(self.radius)
@@ -185,7 +185,6 @@ class TestAOFunctions(unittest.TestCase):
   def test_measure_metric_fourier_power(self):
     self.AO_func.set_metric('fourier_power')
     test_fourier_power_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
-    print(test_fourier_power_metric)
     np.testing.assert_almost_equal(test_fourier_power_metric / self.true_fourier_power_metric, 1, decimal=2)
 
   def test_measure_metric_contrast(self):
