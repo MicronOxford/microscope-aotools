@@ -16,7 +16,7 @@ the python-microscope device server (see device  server documentation:
 https://www.python-microscope.org/examples.html). The device layout is 
 as follows:
 
-    device(AdaptiveOpticsDevice, [ip_address], [port]
+    device(AdaptiveOpticsDevice, [ip_address], [port],
            {mirror_uri:mirror_args,
            wavefront_uri:wavefront_args,
            slm_uri:slm_args})
