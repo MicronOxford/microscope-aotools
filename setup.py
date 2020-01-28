@@ -10,16 +10,16 @@
 
 import setuptools
 setuptools.setup(
-  name = "microAO",
-  version = "0.1.0+dev",
+  name = "microscope-aotools",
+  version = "1.0.0",
   description = "An extensible microscope adaptive optics use.",
   license = "GPL-3.0+",
 
   ## Do not use author_email because that won't play nice once there
   ## are multiple authors.
-  author = "Nick Hall <nicholas.hall@dtc.ox.ac.uk>",
+  author = "Nicholas Hall <nicholas.hall@dtc.ox.ac.uk>",
 
-  url = "https://github.com/NickHallONBI/microAO",
+  url = "https://github.com/MicronOxford/microscope-aotools",
 
   packages = [
     "microAO",
