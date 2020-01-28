@@ -112,6 +112,65 @@ class AdaptiveOpticsDevice(Device):
     def disable_camera(self):
         self.wavefront_camera.disable()
 
+    def generate_isosense_pattern_image(self, shape, dist, wavelength, NA, pixel_size):
+        try:
+            assert type(shape) is tuple
+        except:
+            raise Exception("Expected %s instead recieved %s" % (type((512, 512)), type(shape)))
+
+        try:
+            assert len(shape) == 2
+        except:
+            raise Exception("Expected tuple of length 2, instead recieved length %i" % len(shape))
+
+        ray_crit_dist = (1.22 * wavelength) / (2 * NA)
+        ray_crit_freq = 1 / ray_crit_dist
+        max_freq = 1 / (2 * pixel_size)
+        freq_ratio = ray_crit_freq / max_freq
+        OTF_outer_radx = freq_ratio * (shape[1] / 2)
+        OTF_outer_rady = freq_ratio * (shape[0] / 2)
+
+        pattern_ft = np.zeros(shape)
+
+        f1x = shape[1] // 2
+        f1y = shape[0] // 2
+        f2x = f1x - int(np.round(0.5 * OTF_outer_radx * dist))
+        f2y = f1y - int(np.round(0.5 * OTF_outer_rady * dist))
+        f3x = f1x + int(np.round(0.5 * OTF_outer_radx * dist))
+        f3y = f1y + int(np.round(0.5 * OTF_outer_rady * dist))
+        f4x = f1x - int(np.round(OTF_outer_radx * dist))
+        f4y = f1y - int(np.round(OTF_outer_rady * dist))
+        f5x = f1x + int(np.round(OTF_outer_radx * dist))
+        f5y = f1y + int(np.round(OTF_outer_rady * dist))
+        freq_loc_half = (np.asarray([f2y, f2y, f3y, f3y], dtype="int64"),
+                         np.asarray([f2x, f3x, f2x, f3x], dtype="int64"))
+        freq_loc_quart = (np.asarray([f1y, f1y, f4y, f5y], dtype="int64"),
+                          np.asarray([f4x, f5x, f1x, f1x], dtype="int64"))
+        pattern_ft[f1y, f1x] = 1
+        pattern_ft[freq_loc_half] = 1 / 2
+        pattern_ft[freq_loc_quart] = 1 / 4
+
+        pattern_unscaled = abs(np.fft.fft2(np.fft.ifftshift(pattern_ft)))
+        pattern = (pattern_unscaled / np.max(pattern_unscaled)) * ((2 ** 16) - 1)
+        pattern = pattern.astype("uint16")
+        return pattern
+
+    @Pyro4.expose
+    def apply_isosense_pattern(self, fill_frac, wavelength):
+
+        if fill_frac < 0 :
+            raise ValueError("Fill fraction must be greater than 0")
+        elif fill_frac > 100:
+            raise ValueError("Fill fraction must be less than 100")
+        else:
+            pass
+        ## Tell the SLM to prepare the pattern sequence.
+        dist = fill_frac/100
+        shape = self.slm.get_shape()
+        pattern = self.generate_isosense_pattern_image(shape=shape, wavelength=wavelength*10**-9,
+                                          dist=dist, NA=1.1, pixel_size=0.1193 * 10 ** -6)
+        self.slm.set_custom_sequence(wavelength,[pattern,pattern])
+
     @Pyro4.expose
     def set_trigger(self, cp_ttype, cp_tmode):
         ttype = self._CockpitTriggerType_to_TriggerType[cp_ttype]
