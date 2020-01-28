@@ -48,18 +48,20 @@ class AdaptiveOpticsDevice(Device):
         "START": TriggerMode.START,
     }
 
-    def __init__(self, wavefront_uri, mirror_uri, slm_uri, **kwargs):
+    def __init__(self, mirror_uri, wavefront_uri=None, slm_uri=None, **kwargs):
         # Init will fail if devices it depends on aren't already running, but
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
-        # Wavefront sensor. Must support soft_trigger for now.
-        self.wavefront_camera = Pyro4.Proxy('PYRO:%s@%s:%d' % (wavefront_uri[0].__name__,
-                                                               wavefront_uri[1], wavefront_uri[2]))
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' % (mirror_uri[0].__name__,
                                                      mirror_uri[1], mirror_uri[2]))
+        # Wavefront sensor. Must support soft_trigger for now.
+        if wavefront_uri is not None:
+            self.wavefront_camera = Pyro4.Proxy('PYRO:%s@%s:%d' % (wavefront_uri[0].__name__,
+                                                                   wavefront_uri[1], wavefront_uri[2]))
         # SLM device
-        self.slm = Pyro4.Proxy('PYRO:%s@%s:%d' % (slm_uri[0], slm_uri[1], slm_uri[2]))
+        if slm_uri is not None:
+            self.slm = Pyro4.Proxy('PYRO:%s@%s:%d' % (slm_uri[0], slm_uri[1], slm_uri[2]))
         # self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
         self.numActuators = self.mirror.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
