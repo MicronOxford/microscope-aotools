@@ -339,7 +339,7 @@ class AdaptiveOpticsFunctions():
 
         print("Fitting metric polynomial")
         z_l_bound = np.min(zernike_amplitudes) - (0.25 * (np.max(zernike_amplitudes) - np.min(zernike_amplitudes)))
-        z_u_bound = np.min(zernike_amplitudes) + (0.25 * (np.max(zernike_amplitudes) - np.min(zernike_amplitudes)))
+        z_u_bound = np.max(zernike_amplitudes) + (0.25 * (np.max(zernike_amplitudes) - np.min(zernike_amplitudes)))
         try:
             [offset, normalising, mean, std_dev], pcov = curve_fit(gaussian_funcion, zernike_amplitudes, metrics_measured,
                                                                    bounds=([np.NINF, 0, z_l_bound, np.NINF],
@@ -360,7 +360,7 @@ class AdaptiveOpticsFunctions():
 
     def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike,
                                      wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
-        numMes = full_zernike_applied.shape[0]/nollZernike.shape[0]
+        numMes = int(full_zernike_applied.shape[0]/nollZernike.shape[0])
 
         coef = np.zeros(full_zernike_applied.shape[1])
         for ii in range(nollZernike.shape[0]):
