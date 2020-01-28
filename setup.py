@@ -9,9 +9,18 @@
 ## without any warranty.
 
 import setuptools
+
+with open("README.md", "r") as fh:
+  long_description = fh.read()
+
+manifest_files = [
+  "COPYING",
+  "README.md",
+]
+
 setuptools.setup(
   name = "microscope-aotools",
-  version = "1.0.0",
+  version = "1.0.1",
   description = "An extensible microscope adaptive optics use.",
   license = "GPL-3.0+",
 
@@ -44,5 +53,8 @@ setuptools.setup(
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
   ],
   test_suite="microAO.testsuite",
+
+  long_description=long_description,
+  long_description_content_type="text/markdown"
 )
 
