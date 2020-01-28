@@ -48,18 +48,20 @@ class AdaptiveOpticsDevice(Device):
         "START": TriggerMode.START,
     }
 
-    def __init__(self, wavefront_uri, mirror_uri, slm_uri, **kwargs):
+    def __init__(self, mirror_uri, wavefront_uri=None, slm_uri=None, **kwargs):
         # Init will fail if devices it depends on aren't already running, but
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
-        # Wavefront sensor. Must support soft_trigger for now.
-        self.wavefront_camera = Pyro4.Proxy('PYRO:%s@%s:%d' % (wavefront_uri[0].__name__,
-                                                               wavefront_uri[1], wavefront_uri[2]))
         # Deformable mirror device.
         self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' % (mirror_uri[0].__name__,
                                                      mirror_uri[1], mirror_uri[2]))
+        # Wavefront sensor. Must support soft_trigger for now.
+        if wavefront_uri is not None:
+            self.wavefront_camera = Pyro4.Proxy('PYRO:%s@%s:%d' % (wavefront_uri[0].__name__,
+                                                                   wavefront_uri[1], wavefront_uri[2]))
         # SLM device
-        self.slm = Pyro4.Proxy('PYRO:%s@%s:%d' % (slm_uri[0], slm_uri[1], slm_uri[2]))
+        if slm_uri is not None:
+            self.slm = Pyro4.Proxy('PYRO:%s@%s:%d' % (slm_uri[0], slm_uri[1], slm_uri[2]))
         # self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
         self.numActuators = self.mirror.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
@@ -109,6 +111,65 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def disable_camera(self):
         self.wavefront_camera.disable()
+
+    def generate_isosense_pattern_image(self, shape, dist, wavelength, NA, pixel_size):
+        try:
+            assert type(shape) is tuple
+        except:
+            raise Exception("Expected %s instead recieved %s" % (type((512, 512)), type(shape)))
+
+        try:
+            assert len(shape) == 2
+        except:
+            raise Exception("Expected tuple of length 2, instead recieved length %i" % len(shape))
+
+        ray_crit_dist = (1.22 * wavelength) / (2 * NA)
+        ray_crit_freq = 1 / ray_crit_dist
+        max_freq = 1 / (2 * pixel_size)
+        freq_ratio = ray_crit_freq / max_freq
+        OTF_outer_radx = freq_ratio * (shape[1] / 2)
+        OTF_outer_rady = freq_ratio * (shape[0] / 2)
+
+        pattern_ft = np.zeros(shape)
+
+        f1x = shape[1] // 2
+        f1y = shape[0] // 2
+        f2x = f1x - int(np.round(0.5 * OTF_outer_radx * dist))
+        f2y = f1y - int(np.round(0.5 * OTF_outer_rady * dist))
+        f3x = f1x + int(np.round(0.5 * OTF_outer_radx * dist))
+        f3y = f1y + int(np.round(0.5 * OTF_outer_rady * dist))
+        f4x = f1x - int(np.round(OTF_outer_radx * dist))
+        f4y = f1y - int(np.round(OTF_outer_rady * dist))
+        f5x = f1x + int(np.round(OTF_outer_radx * dist))
+        f5y = f1y + int(np.round(OTF_outer_rady * dist))
+        freq_loc_half = (np.asarray([f2y, f2y, f3y, f3y], dtype="int64"),
+                         np.asarray([f2x, f3x, f2x, f3x], dtype="int64"))
+        freq_loc_quart = (np.asarray([f1y, f1y, f4y, f5y], dtype="int64"),
+                          np.asarray([f4x, f5x, f1x, f1x], dtype="int64"))
+        pattern_ft[f1y, f1x] = 1
+        pattern_ft[freq_loc_half] = 1 / 2
+        pattern_ft[freq_loc_quart] = 1 / 4
+
+        pattern_unscaled = abs(np.fft.fft2(np.fft.ifftshift(pattern_ft)))
+        pattern = (pattern_unscaled / np.max(pattern_unscaled)) * ((2 ** 16) - 1)
+        pattern = pattern.astype("uint16")
+        return pattern
+
+    @Pyro4.expose
+    def apply_isosense_pattern(self, fill_frac, wavelength, NA, pixel_size):
+
+        if fill_frac < 0 :
+            raise ValueError("Fill fraction must be greater than 0")
+        elif fill_frac > 100:
+            raise ValueError("Fill fraction must be less than 100")
+        else:
+            pass
+        ## Tell the SLM to prepare the pattern sequence.
+        dist = fill_frac/100
+        shape = self.slm.get_shape()
+        pattern = self.generate_isosense_pattern_image(shape=shape, wavelength=wavelength,
+                                          dist=dist, NA=NA, pixel_size=pixel_size)
+        self.slm.set_custom_sequence(wavelength,[pattern,pattern])
 
     @Pyro4.expose
     def set_trigger(self, cp_ttype, cp_tmode):
