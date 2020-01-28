@@ -156,7 +156,7 @@ class AdaptiveOpticsDevice(Device):
         return pattern
 
     @Pyro4.expose
-    def apply_isosense_pattern(self, fill_frac, wavelength):
+    def apply_isosense_pattern(self, fill_frac, wavelength, NA, pixel_size):
 
         if fill_frac < 0 :
             raise ValueError("Fill fraction must be greater than 0")
@@ -167,8 +167,8 @@ class AdaptiveOpticsDevice(Device):
         ## Tell the SLM to prepare the pattern sequence.
         dist = fill_frac/100
         shape = self.slm.get_shape()
-        pattern = self.generate_isosense_pattern_image(shape=shape, wavelength=wavelength*10**-9,
-                                          dist=dist, NA=1.1, pixel_size=0.1193 * 10 ** -6)
+        pattern = self.generate_isosense_pattern_image(shape=shape, wavelength=wavelength,
+                                          dist=dist, NA=NA, pixel_size=pixel_size)
         self.slm.set_custom_sequence(wavelength,[pattern,pattern])
 
     @Pyro4.expose
