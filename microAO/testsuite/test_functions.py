@@ -160,7 +160,7 @@ class TestAOFunctions(unittest.TestCase):
     np.testing.assert_almost_equal(abs(g0), self.true_x_freq, decimal=0)
     np.testing.assert_almost_equal(abs(g1), self.true_y_freq, decimal=0)
 
-  def test_phase_unwrap(self):
+  def test_unwrap_interferometry(self):
     zcoeffs_in = np.zeros(self.planned_n_actuators)
     zcoeffs_in[2] = 1
     aberration_angle = aotools.phaseFromZernikes(zcoeffs_in, self.test_inter.shape[1])
@@ -168,7 +168,7 @@ class TestAOFunctions(unittest.TestCase):
     test_phase = self.test_inter * aberration_phase
     aberration = unwrap_phase(np.arctan2(aberration_phase.imag,aberration_phase.real))
 
-    test_aberration = self.AO_func.phase_unwrap(image=test_phase)
+    test_aberration = self.AO_func.unwrap_interferometry(image=test_phase)
     #Test that the test aberrations isn't all 0s
     np.testing.assert_equal(np.not_equal(np.sum(test_aberration),0), True)
     ab_ratio_mean = np.mean(test_aberration[aberration != 0]/aberration[aberration != 0])
