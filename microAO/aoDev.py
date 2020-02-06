@@ -31,6 +31,9 @@ from microscope.devices import Device
 from microscope.devices import TriggerType
 from microscope.devices import TriggerMode
 
+unwrap_method = {
+    'interferometry': aoAlg.unwrap_interferometry,
+}
 
 class AdaptiveOpticsDevice(Device):
     """Class for the adaptive optics device
@@ -70,6 +73,8 @@ class AdaptiveOpticsDevice(Device):
         self.mask = None
         # Mask to select phase information
         self.fft_filter = None
+        # Phase acquisition method
+        self.phase_method = 'interferometry'
         # Control Matrix
         self.controlMatrix = None
         # System correction
@@ -394,6 +399,28 @@ class AdaptiveOpticsDevice(Device):
             self._logger.info(e)
         return self.fft_filter
 
+    def check_unwrap_conditions(self, image = None):
+        if image is None:
+            image = self.acquire()
+
+        if self.phase_method == 'interferometry':
+            if np.any(self.mask) is None:
+                try:
+                    self.mask = self.make_mask(int(np.round(np.shape(image)[0] / 2)))
+                except Exception as e:
+                    raise Exception([Exception("Problem constructing mask for interferometric phase unwrapping"), e])
+            else:
+                pass
+
+            if np.any(self.fft_filter) is None:
+                try:
+                    self.fft_filter = self.set_fourierfilter(image)
+                except Exception as e:
+                    raise Exception([Exception("Problem constructing fourier filter for interferometric phase unwrapping"),
+                                     e])
+            else:
+                pass
+
     @Pyro4.expose
     def phaseunwrap(self, image=None):
         # Ensure an ROI is defined so a masked image is obtained
@@ -405,22 +432,11 @@ class AdaptiveOpticsDevice(Device):
         if np.any(image) is None:
             image = self.acquire()
 
-        # Ensure the filters has been constructed
-        if np.any(self.mask) is None:
-            self.mask = self.make_mask(int(np.round(np.shape(image)[0] / 2)))
-        else:
-            pass
+        # Ensure the conditions for phase unwrapping are in satisfied
+        self.check_unwrap_conditions(image)
 
-        if np.any(self.fft_filter) is None:
-            try:
-                self.fft_filter = self.set_fourierfilter(image)
-            except:
-                raise
-        else:
-            pass
-
-        self.out = aoAlg.phase_unwrap(image)
-        return self.out
+        out = unwrap_method[self.phase_method](image)
+        return out
 
     @Pyro4.expose
     def getzernikemodes(self, image_unwrap, noZernikeModes, resize_dim=128):
@@ -435,16 +451,8 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        # Ensure the filters has been constructed
-        if np.any(self.mask) is None:
-            self.mask = self.make_mask(int(np.round(np.shape(imageStack)[1] / 2)))
-        else:
-            pass
-
-        if np.any(self.fft_filter) is None:
-            self.fft_filter = self.set_fourierfilter(imageStack[0, :, :])
-        else:
-            pass
+        # Ensure the conditions for phase unwrapping are in satisfied
+        self.check_unwrap_conditions(imageStack[0,:,:])
 
         if np.any(pupil_ac == None):
             pupil_ac = self.pupil_ac
@@ -477,7 +485,7 @@ class AdaptiveOpticsDevice(Device):
                     image_stack_cropped[im, :, :] = poke_image
 
                     # Unwrap the current image
-                    image_unwrap = aoAlg.phase_unwrap(poke_image)
+                    image_unwrap = unwrap_method[self.phase_method](poke_image)
                     unwrapped_stack_cropped[im, :, :] = image_unwrap
 
                     # Check the current phase map for discontinuities which can interfere with the Zernike mode measurements
@@ -517,15 +525,8 @@ class AdaptiveOpticsDevice(Device):
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
 
-        # Ensure a Fourier filter has been constructed
-        if np.any(self.fft_filter) is None:
-            try:
-                test_image = self.acquire()
-                self.fft_filter = self.set_fourierfilter(test_image)
-            except Exception as e:
-                raise e
-        else:
-            pass
+        # Ensure the conditions for phase unwrapping are in satisfied
+        self.check_unwrap_conditions()
 
         interferogram = self.acquire()
         interferogram_unwrap = self.phaseunwrap(interferogram)
@@ -565,18 +566,8 @@ class AdaptiveOpticsDevice(Device):
         test_image = np.asarray(self.acquire())
         (y, x) = np.shape(test_image)
 
-        # Ensure the filters has been constructed
-        if np.any(self.mask) is None:
-            self._logger.info("Constructing mask")
-            self.mask = self.make_mask(self.roi[2])
-        else:
-            pass
-
-        if np.any(self.fft_filter) is None:
-            self._logger.info("Constructing Fourier filter")
-            self.fft_filter = self.set_fourierfilter(test_image[:, :])
-        else:
-            pass
+        # Ensure the conditions for phase unwrapping are in satisfied
+        self.check_unwrap_conditions(test_image)
 
         nzernike = self.numActuators
 
@@ -622,7 +613,7 @@ class AdaptiveOpticsDevice(Device):
                     image_stack_cropped[im, :, :] = poke_image
 
                     # Unwrap the current image
-                    image_unwrap = aoAlg.phase_unwrap(poke_image)
+                    image_unwrap = unwrap_method[self.phase_method](poke_image)
                     unwrapped_stack_cropped[im, :, :] = image_unwrap
 
                     # Check the current phase map for discontinuities which can interfere with the Zernike mode measurements
@@ -673,15 +664,10 @@ class AdaptiveOpticsDevice(Device):
             assert np.any(self.roi) is not None
         except:
             raise Exception("No region of interest selected. Please select a region of interest")
-        # Ensure a Fourier filter has been constructed
-        if np.any(self.fft_filter) is None:
-            try:
-                test_image = self.acquire()
-                self.fft_filter = self.set_fourierfilter(test_image)
-            except:
-                raise
-        else:
-            pass
+
+        # Ensure the conditions for phase unwrapping are in satisfied
+        self.check_unwrap_conditions()
+
         # Check dimensions match
         numActuators, nzernike = np.shape(self.controlMatrix)
         try:
@@ -749,15 +735,8 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def assess_character(self, modes_tba=None):
-        # Ensure a Fourier filter has been constructed
-        if np.any(self.fft_filter) is None:
-            try:
-                test_image = self.acquire()
-                self.fft_filter = self.set_fourierfilter(test_image)
-            except:
-                raise
-        else:
-            pass
+        # Ensure the conditions for phase unwrapping are in satisfied
+        self.check_unwrap_conditions()
 
         if modes_tba is None:
             modes_tba = self.numActuators
