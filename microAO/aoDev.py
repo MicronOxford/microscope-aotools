@@ -649,13 +649,7 @@ class AdaptiveOpticsDevice(Device):
                                                          threshold=threshold)
         self._logger.info("Control Matrix computed")
         np.save("control_matrix", self.controlMatrix)
-
-        # Obtain actuator positions to correct for system aberrations
-        # Ignore piston, tip, tilt and defocus
-        z_modes_ignore = (np.asarray(range(69)) > 3) * (np.asarray(range(69)) < 25)
-        self.flat_actuators_sys = self.flatten_phase(iterations=5, z_modes_ignore=z_modes_ignore)
-
-        return self.controlMatrix, self.flat_actuators_sys
+        return self.controlMatrix
 
     @Pyro4.expose
     def flatten_phase(self, iterations=1, z_modes_ignore=None):
