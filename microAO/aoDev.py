@@ -684,7 +684,7 @@ class AdaptiveOpticsDevice(Device):
         x, y = interferogram_unwrap.shape
         assert x == y
         true_flat = np.zeros(np.shape(interferogram_unwrap))
-        best_rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
+        best_rms_error = np.sqrt(np.mean(abs(true_flat - interferogram_unwrap) ** 2))
         for ii in range(iterations):
             self._logger.info("Correction iteration %i/%i" % (ii + 1, iterations))
             interferogram = self.acquire()
@@ -698,7 +698,7 @@ class AdaptiveOpticsDevice(Device):
             # We ignore piston, tip and tilt
             z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
-            rms_error = np.sqrt(np.mean((true_flat - interferogram_unwrap) ** 2))
+            rms_error = np.sqrt(np.mean(abs(true_flat - interferogram_unwrap) ** 2))
             self._logger.info("Current RMS error is %.5f. Best is %.5f" % (rms_error, best_rms_error))
             if rms_error < best_rms_error:
                 if no_discontinuities > (x * y) / 1000.0:
