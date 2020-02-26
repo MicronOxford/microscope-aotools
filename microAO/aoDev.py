@@ -672,9 +672,19 @@ class AdaptiveOpticsDevice(Device):
         # Set which modes to ignore while flattening
         if np.any(z_modes_ignore) is None:
             # By default, ignore piston, tip and tilt
-            z_modes_ignore = np.asarray(range(69)) > 2
+            z_modes_ignore = np.asarray(range(nzernike)) > 2
         else:
-            pass
+            # If we have more Zernike modes to ignore than in the control matrix, crop to the correct number
+            if len(z_modes_ignore) > nzernike:
+                z_modes_ignore = z_modes_ignore[:nzernike]
+            # If we have fewer Zernike modes to ignore than in the control matrix, pad with zeros (i.e. ignore all the
+            # Zernike modes the user didn't specify)
+            elif len(z_modes_ignore) < nzernike:
+                z_modes_ignore = np.pad(z_modes_ignore, (0,len(z_modes_ignore)-nzernike),
+                                        mode="constant", constant_values=0)
+            else:
+                pass
+
         best_flat_actuators = np.zeros(numActuators) + 0.5
         self.send(best_flat_actuators)
         # Get a measure of the RMS phase error of the uncorrected wavefront
