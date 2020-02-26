@@ -35,6 +35,8 @@ unwrap_method = {
     'interferometry': aoAlg.unwrap_interferometry,
 }
 
+wavefront_error_modes = ["RMS","Strehl"]
+
 class AdaptiveOpticsDevice(Device):
     """Class for the adaptive optics device
     This class requires a mirror and a camera. Everything else is generated
@@ -102,6 +104,8 @@ class AdaptiveOpticsDevice(Device):
                             "number of actuators (%i). Please provide a mask "
                             "of the correct length" % (np.shape(self.pupil_ac)[0],
                                                        self.numActuators))
+
+        self._wavefront_error_mode = self.wavefront_rms_error
 
     def _on_shutdown(self):
         pass
@@ -212,6 +216,20 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def get_pupil_ac(self):
         return self.pupil_ac
+
+    @Pyro4.expose
+    def get_wavefront_error_modes(self):
+        return wavefront_error_modes
+
+    @Pyro4.expose
+    def set_wavefront_error_mode(self,mode):
+        if not mode in wavefront_error_modes:
+            raise Exception("TypeError: Not a valid wavefront error mode")
+        else:
+            if mode == wavefront_error_modes[0]:
+                self._wavefront_error_mode = self.wavefront_rms_error
+            elif mode == wavefront_error_modes[1]:
+                self._wavefront_error_mode = self.wavefront_strehl_ratio
 
     @Pyro4.expose
     def set_metric(self,metric):
@@ -693,8 +711,7 @@ class AdaptiveOpticsDevice(Device):
         interferogram_unwrap = self.phaseunwrap(interferogram)
         x, y = interferogram_unwrap.shape
         assert x == y
-        true_flat = np.zeros(np.shape(interferogram_unwrap))
-        best_rms_error = np.sqrt(np.mean(abs(true_flat - interferogram_unwrap) ** 2))
+        best_error = self._wavefront_error_mode(interferogram_unwrap)
         for ii in range(iterations):
             self._logger.info("Correction iteration %i/%i" % (ii + 1, iterations))
             interferogram = self.acquire()
@@ -708,18 +725,18 @@ class AdaptiveOpticsDevice(Device):
             # We ignore piston, tip and tilt
             z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
-            rms_error = np.sqrt(np.mean(abs(true_flat - interferogram_unwrap) ** 2))
-            self._logger.info("Current RMS error is %.5f. Best is %.5f" % (rms_error, best_rms_error))
-            if rms_error < best_rms_error:
+            current_error = self._wavefront_error_mode(interferogram_unwrap)
+            self._logger.info("Current wavefront error is %.5f. Best is %.5f" % (current_error, best_error))
+            if current_error < best_error:
                 if no_discontinuities > (x * y) / 1000.0:
                     self._logger.info("Too many discontinuities in wavefront unwrap")
                 else:
                     best_flat_actuators = np.copy(flat_actuators)
-                    best_rms_error = np.copy(rms_error)
-            elif rms_error > best_rms_error:
-                self._logger.info("RMS wavefront error worse than before")
+                    best_error = np.copy(current_error)
+            elif current_error > best_error:
+                self._logger.info("Wavefront error worse than before")
             else:
-                self._logger.info("No improvement in RMS wavefront error")
+                self._logger.info("No improvement in Wavefront error")
         self.send(best_flat_actuators)
         return best_flat_actuators
 
