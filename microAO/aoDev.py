@@ -218,8 +218,16 @@ class AdaptiveOpticsDevice(Device):
         return self.pupil_ac
 
     @Pyro4.expose
-    def get_wavefront_error_modes(self):
+    def get_all_wavefront_error_modes(self):
         return wavefront_error_modes
+
+    @Pyro4.expose
+    def get_wavefront_error_mode(self):
+        if self._wavefront_error_mode is self.wavefront_rms_error:
+            mode = wavefront_error_modes[0]
+        elif self._wavefront_error_mode is self.wavefront_strehl_ratio:
+            mode = wavefront_error_modes[1]
+        return mode
 
     @Pyro4.expose
     def set_wavefront_error_mode(self,mode):
