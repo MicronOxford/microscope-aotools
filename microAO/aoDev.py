@@ -686,7 +686,7 @@ class AdaptiveOpticsDevice(Device):
         return self.controlMatrix
 
     @Pyro4.expose
-    def flatten_phase(self, iterations=1, z_modes_ignore=None):
+    def flatten_phase(self, iterations=1, error_thresh=np.inf, z_modes_ignore=None):
         # Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
@@ -728,7 +728,8 @@ class AdaptiveOpticsDevice(Device):
         x, y = wavefront.shape
         assert x == y
         best_error = self._wavefront_error_mode(wavefront)
-        for ii in range(iterations):
+        ii = 0
+        while (iterations > ii) or (best_error > error_thresh):
             self._logger.info("Correction iteration %i/%i" % (ii + 1, iterations))
             image = self.acquire()
             wavefront = unwrap_method[self.phase_method](image)
@@ -753,6 +754,7 @@ class AdaptiveOpticsDevice(Device):
                 self._logger.info("Wavefront error worse than before")
             else:
                 self._logger.info("No improvement in Wavefront error")
+            ii += 1
         self.send(best_flat_actuators)
         return best_flat_actuators
 
