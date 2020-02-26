@@ -723,25 +723,25 @@ class AdaptiveOpticsDevice(Device):
         self.send(best_flat_actuators)
         # Get a measure of the RMS phase error of the uncorrected wavefront
         # The corrected wavefront should be better than this
-        interferogram = self.acquire()
-        interferogram_unwrap = self.phaseunwrap(interferogram)
-        x, y = interferogram_unwrap.shape
+        image = self.acquire()
+        wavefront = unwrap_method[self.phase_method](image)
+        x, y = wavefront.shape
         assert x == y
-        best_error = self._wavefront_error_mode(interferogram_unwrap)
+        best_error = self._wavefront_error_mode(wavefront)
         for ii in range(iterations):
             self._logger.info("Correction iteration %i/%i" % (ii + 1, iterations))
-            interferogram = self.acquire()
-            interferogram_unwrap = self.phaseunwrap(interferogram)
+            image = self.acquire()
+            wavefront = unwrap_method[self.phase_method](image)
             edge_mask = np.sqrt(
                 (np.arange(-x / 2.0, x / 2.0) ** 2).reshape((x, 1)) + (np.arange(-x / 2.0, x / 2.0) ** 2)) < (
                                 (x / 2.0) - 3)
-            diff_image = abs(np.diff(np.diff(interferogram_unwrap, axis=1), axis=0)) * edge_mask[:-1, :-1]
+            diff_image = abs(np.diff(np.diff(wavefront, axis=1), axis=0)) * edge_mask[:-1, :-1]
             no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
-            z_amps = self.getzernikemodes(interferogram_unwrap, nzernike)
+            z_amps = self.getzernikemodes(wavefront, nzernike)
             # We ignore piston, tip and tilt
             z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
-            current_error = self._wavefront_error_mode(interferogram_unwrap)
+            current_error = self._wavefront_error_mode(wavefront)
             self._logger.info("Current wavefront error is %.5f. Best is %.5f" % (current_error, best_error))
             if current_error < best_error:
                 if no_discontinuities > (x * y) / 1000.0:
