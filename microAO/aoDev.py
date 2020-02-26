@@ -569,15 +569,23 @@ class AdaptiveOpticsDevice(Device):
     def wavefront_rms_error(self, phase_map=None):
         if phase_map is None:
             phase_map = self.acquire_unwrapped_phase()
+
+        if self.mask is None:
+            self.make_mask(phase_map.shape//2)
+
         true_flat = np.zeros(np.shape(phase_map))
-        rms_error = np.sqrt(np.mean((true_flat - phase_map) ** 2))
+        rms_error = np.sqrt(np.mean((true_flat[self.mask] - phase_map[self.mask]) ** 2))
         return rms_error
 
     @Pyro4.expose
     def wavefront_strehl_ratio(self, phase_map=None):
         if phase_map is None:
             phase_map = self.acquire_unwrapped_phase()
-        strehl_ratio = np.exp(-np.mean((phase_map - np.mean(phase_map)) ** 2))
+
+        if self.mask is None:
+            self.make_mask(phase_map.shape//2)
+
+        strehl_ratio = np.exp(-np.mean((phase_map[self.mask] - np.mean(phase_map[self.mask])) ** 2))
         return strehl_ratio
 
     @Pyro4.expose
