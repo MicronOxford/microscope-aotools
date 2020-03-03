@@ -34,8 +34,8 @@ def make_OTF_mask(size, inner_rad, outer_rad):
     ring_mask = outer_mask * inner_mask
     return ring_mask
 
-def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
-                            pixel_size=0.1193 * 10 ** -6, **kwargs):
+
+def measure_fourier_metric(image, wavelength, NA, pixel_size, noise_amp_factor=1.125, **kwargs):
     ray_crit_dist = (1.22 * wavelength) / (2 * NA)
     ray_crit_freq = 1 / ray_crit_dist
     max_freq = 1 / (2 * pixel_size)
@@ -55,7 +55,7 @@ def measure_fourier_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
     noise_mask = make_OTF_mask(np.shape(image), 0, 1.1 * OTF_outer_rad)
-    threshold = np.mean(fftarray_sq_log[noise_mask == 0]) * 1.125
+    threshold = np.mean(fftarray_sq_log[noise_mask == 0]) * noise_amp_factor
 
     OTF_mask = make_OTF_mask(np.shape(image), 0.1 * OTF_outer_rad, OTF_outer_rad)
     freq_above_noise = (fftarray_sq_log > threshold) * OTF_mask
@@ -84,8 +84,9 @@ def measure_gradient_metric(image, **kwargs):
     metric = np.mean(correction_grad)
     return metric
 
-def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
-                            pixel_size=0.1193 * 10 ** -6, **kwargs):
+
+def measure_fourier_power_metric(image, wavelength, NA, pixel_size, noise_amp_factor=1.125,
+                                 high_f_amp_factor=100, **kwargs):
     ray_crit_dist = (1.22 * wavelength) / (2 * NA)
     ray_crit_freq = 1 / ray_crit_dist
     max_freq = 1 / (2 * pixel_size)
@@ -105,7 +106,7 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
     noise_mask = make_OTF_mask(np.shape(image), 0, 1.1 * OTF_outer_rad)
-    threshold = np.mean(fftarray_sq_log[noise_mask == 0]) * 1.125
+    threshold = np.mean(fftarray_sq_log[noise_mask == 0]) * noise_amp_factor
 
     circ_mask = make_OTF_mask(np.shape(image), 0, OTF_outer_rad)
 
@@ -120,19 +121,18 @@ def measure_fourier_power_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     rad_y = int(image.shape[0] / 2)
     rad_x = int(image.shape[1] / 2)
     dist = np.sqrt((np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1)) +
-                         np.arange(-rad_x, rad_x) ** 2)
-    gamma = abs(dist - OTF_outer_rad) * circ_mask
-    omega = 1 - np.exp(-(gamma / OTF_outer_rad))
+                   np.arange(-rad_x, rad_x) ** 2)
+    omega = 1 - np.exp((dist / OTF_outer_rad) - 1)
 
-    high_f_amp_mask = 100 * (ramp_mask * omega) / np.max(ramp_mask * omega)
+    high_f_amp_mask = high_f_amp_factor * (ramp_mask * omega) / np.max(ramp_mask * omega)
 
     OTF_mask = make_OTF_mask(np.shape(image), 0.1 * OTF_outer_rad, OTF_outer_rad)
     freq_above_noise = (fftarray_sq_log > threshold) * OTF_mask * high_f_amp_mask
     metric = np.sum(freq_above_noise)
     return metric
 
-def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
-                            pixel_size=0.1193 * 10 ** -6, **kwargs):
+
+def measure_second_moment_metric(image, wavelength, NA, pixel_size, **kwargs):
     ray_crit_dist = (1.22 * wavelength) / (2 * NA)
     ray_crit_freq = 1 / ray_crit_dist
     max_freq = 1 / (2 * pixel_size)
@@ -151,8 +151,6 @@ def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
 
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
-    circ_mask = make_OTF_mask(np.shape(image), 0, OTF_outer_rad)
-
     ring_mask = make_OTF_mask(np.shape(image), 0, OTF_outer_rad)
 
     x = np.linspace(0, image.shape[1] - 1, image.shape[1])
@@ -167,8 +165,7 @@ def measure_second_moment_metric(image, wavelength=500 * 10 ** -9, NA=1.1,
     rad_x = int(image.shape[1] / 2)
     dist = np.sqrt((np.arange(-rad_y, rad_y) ** 2).reshape((rad_y * 2, 1)) +
                    np.arange(-rad_x, rad_x) ** 2)
-    gamma = abs(dist - OTF_outer_rad) * circ_mask
-    omega = 1 - np.exp(-(gamma / OTF_outer_rad))
+    omega = 1 - np.exp((dist/OTF_outer_rad)-1)
 
     metric = np.sum(ring_mask * fftarray_sq_log * ramp_mask * omega)/np.sum(fftarray_sq_log)
     return metric
