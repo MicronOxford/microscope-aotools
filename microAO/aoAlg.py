@@ -196,7 +196,7 @@ class AdaptiveOpticsFunctions():
         self.fft_filter = np.roll(self.fft_filter, -y_shift, axis=0)
         return self.fft_filter
 
-    def unwrap_interferometry(self,image):
+    def unwrap_interferometry(self, image, **kwargs):
         #Convert image to array and float
         data = np.asarray(image)
 
