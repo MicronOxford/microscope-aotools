@@ -724,25 +724,29 @@ class AdaptiveOpticsDevice(Device):
         # Get a measure of the RMS phase error of the uncorrected wavefront
         # The corrected wavefront should be better than this
         image = self.acquire()
-        wavefront = unwrap_method[self.phase_method](image)
-        x, y = wavefront.shape
+        intitial_wavefront = unwrap_method[self.phase_method](image)
+        x, y = intitial_wavefront.shape
         assert x == y
-        best_error = self._wavefront_error_mode(wavefront)
+        best_error = self._wavefront_error_mode(intitial_wavefront)
         ii = 0
         while (iterations > ii) or (best_error > error_thresh):
             self._logger.info("Correction iteration %i/%i" % (ii + 1, iterations))
+            # Measure the current wavefront and calculate the Zernike modes to apply to correct
             image = self.acquire()
-            wavefront = unwrap_method[self.phase_method](image)
+            correction_wavefront = unwrap_method[self.phase_method](image)
             edge_mask = np.sqrt(
                 (np.arange(-x / 2.0, x / 2.0) ** 2).reshape((x, 1)) + (np.arange(-x / 2.0, x / 2.0) ** 2)) < (
                                 (x / 2.0) - 3)
-            diff_image = abs(np.diff(np.diff(wavefront, axis=1), axis=0)) * edge_mask[:-1, :-1]
+            diff_image = abs(np.diff(np.diff(correction_wavefront, axis=1), axis=0)) * edge_mask[:-1, :-1]
             no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
-            z_amps = self.getzernikemodes(wavefront, nzernike)
-            # We ignore piston, tip and tilt
+            z_amps = self.getzernikemodes(correction_wavefront, nzernike)
             z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
-            current_error = self._wavefront_error_mode(wavefront)
+
+            # Now that the wavefront is corrected, measure it again and calculate RMS deformation
+            image = self.acquire()
+            corrected_wavefront = unwrap_method[self.phase_method](image)
+            current_error = self._wavefront_error_mode(corrected_wavefront)
             self._logger.info("Current wavefront error is %.5f. Best is %.5f" % (current_error, best_error))
             if current_error < best_error:
                 if no_discontinuities > (x * y) / 1000.0:
