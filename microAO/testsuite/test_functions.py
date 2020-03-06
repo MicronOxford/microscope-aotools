@@ -122,6 +122,9 @@ class TestAOFunctions(unittest.TestCase):
     self.true_contrast_metric = 771000
     self.true_gradient_metric = 0.00537
     self.true_second_moment_metric = 83
+    self.test_NA = 1.1
+    self.test_wavelength = 500 * (10**-9)
+    self.test_pixel_size = 0.1193 * (10 ** -6)
 
     self.true_num_mes = 15
     self.true_z_min = -1
@@ -233,12 +236,14 @@ class TestAOFunctions(unittest.TestCase):
 
   def test_measure_metric_fourier(self):
     self.AO_func.set_metric('fourier')
-    test_fourier_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
+    test_fourier_metric = self.AO_func.measure_metric(self.true_metric_single_measure, wavelength=self.test_wavelength,
+                                                      NA=self.test_NA, pixel_size=self.test_pixel_size)
     np.testing.assert_almost_equal(test_fourier_metric/self.true_fourier_metric, 1, decimal=2)
 
   def test_measure_metric_fourier_power(self):
     self.AO_func.set_metric('fourier_power')
-    test_fourier_power_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
+    test_fourier_power_metric = self.AO_func.measure_metric(self.true_metric_single_measure, wavelength=self.test_wavelength,
+                                                      NA=self.test_NA, pixel_size=self.test_pixel_size)
     np.testing.assert_almost_equal(test_fourier_power_metric / self.true_fourier_power_metric, 1, decimal=2)
 
   def test_measure_metric_contrast(self):
@@ -253,14 +258,16 @@ class TestAOFunctions(unittest.TestCase):
 
   def test_measure_metric_second_moment(self):
     self.AO_func.set_metric('second_moment')
-    test_second_moment_metric = self.AO_func.measure_metric(self.true_metric_single_measure)
+    test_second_moment_metric = self.AO_func.measure_metric(self.true_metric_single_measure, wavelength=self.test_wavelength,
+                                                      NA=self.test_NA, pixel_size=self.test_pixel_size)
     np.testing.assert_almost_equal(test_second_moment_metric / self.true_second_moment_metric, 1, decimal=2)
 
   def test_find_zernike_amp_sensorless(self):
     self.AO_func.set_metric('contrast')
     zernike_amplitudes = np.linspace(self.true_z_min, self.true_z_max, self.true_num_mes,)
     amplitude_present = self.AO_func.find_zernike_amp_sensorless(self.true_single_mode_measurements,
-                                                                 zernike_amplitudes)
+                                                                 zernike_amplitudes, wavelength=self.test_wavelength,
+                                                                 NA=self.test_NA, pixel_size=self.test_pixel_size)
 
     print(amplitude_present)
     print(self.true_max_mode_z)
@@ -275,7 +282,8 @@ class TestAOFunctions(unittest.TestCase):
       full_zernike_applied[ind * self.true_num_mes:(ind + 1) * self.true_num_mes, noll_ind - 1] = z_steps
 
     coef = self.AO_func.get_zernike_modes_sensorless(self.true_multi_mode_measurements, full_zernike_applied,
-                                                     self.true_noll_zernike)
+                                                     self.true_noll_zernike, wavelength=self.test_wavelength,
+                                                     NA=self.test_NA, pixel_size=self.test_pixel_size)
 
     print(coef)
     print(self.true_max_modes_z)
