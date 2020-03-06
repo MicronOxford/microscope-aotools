@@ -804,8 +804,8 @@ class AdaptiveOpticsDevice(Device):
         return metric
 
     @Pyro4.expose
-    def correct_sensorless_single_mode(self, image_stack, zernike_applied, nollIndex, offset=None,
-                                       wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
+    def correct_sensorless_single_mode(self, image_stack, zernike_applied, nollIndex,
+                                       wavelength, NA, pixel_size, offset=None):
         z_amps = np.zeros(self.numActuators)
         amp_to_correct = aoAlg.find_zernike_amp_sensorless(image_stack, zernike_applied, wavelength=wavelength, NA=NA,
                                                            pixel_size=pixel_size)

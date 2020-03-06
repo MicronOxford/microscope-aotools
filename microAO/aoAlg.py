@@ -325,8 +325,7 @@ class AdaptiveOpticsFunctions():
         metric = metric_function[self.metric](image, **kwargs)
         return metric
 
-    def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, wavelength=500 * 10 ** -9, NA=1.1,
-                               pixel_size=0.1193 * 10 ** -6):
+    def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, wavelength, NA, pixel_size):
         metrics_measured = []
         for ii in range(image_stack.shape[0]):
             print("Measuring metric %i/%i" % (ii + 1, image_stack.shape[0]))
@@ -359,7 +358,7 @@ class AdaptiveOpticsFunctions():
         return amplitude_present
 
     def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike,
-                                     wavelength=500 * 10 ** -9, NA=1.1, pixel_size=0.1193 * 10 ** -6):
+                                     wavelength, NA, pixel_size):
         numMes = int(full_zernike_applied.shape[0]/nollZernike.shape[0])
 
         coef = np.zeros(full_zernike_applied.shape[1])
