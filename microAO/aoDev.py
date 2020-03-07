@@ -22,6 +22,7 @@
 import numpy as np
 import Pyro4
 import time
+import aotools
 from microAO.aoAlg import AdaptiveOpticsFunctions
 
 # Should fix this with multiple inheritance for this class!
@@ -731,7 +732,9 @@ class AdaptiveOpticsDevice(Device):
         intitial_wavefront = unwrap_method[self.phase_method](image)
         x, y = intitial_wavefront.shape
         assert x == y
-        best_error = self._wavefront_error_mode(intitial_wavefront)
+        initial_ptt = self.getzernikemodes(intitial_wavefront,3)
+        intitial_wavefront_mptt = intitial_wavefront - aotools.phaseFromZernikes(initial_ptt,x)
+        best_error = self._wavefront_error_mode(intitial_wavefront_mptt)
         ii = 0
         while (iterations > ii) or (best_error > error_thresh):
             _logger.info("Correction iteration %i/%i" % (ii + 1, iterations))
@@ -750,7 +753,8 @@ class AdaptiveOpticsDevice(Device):
             # Now that the wavefront is corrected, measure it again and calculate RMS deformation
             image = self.acquire()
             corrected_wavefront = unwrap_method[self.phase_method](image)
-            current_error = self._wavefront_error_mode(corrected_wavefront)
+            corrected_wavefront_mptt = corrected_wavefront - aotools.phaseFromZernikes(z_amps[0:3], x)
+            current_error = self._wavefront_error_mode(corrected_wavefront_mptt)
             _logger.info("Current wavefront error is %.5f. Best is %.5f" % (current_error, best_error))
             if current_error < best_error:
                 if no_discontinuities > (x * y) / 1000.0:
