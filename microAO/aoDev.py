@@ -729,12 +729,9 @@ class AdaptiveOpticsDevice(Device):
         # Get a measure of the RMS phase error of the uncorrected wavefront
         # The corrected wavefront should be better than this
         image = self.acquire()
-        intitial_wavefront = unwrap_method[self.phase_method](image)
-        x, y = intitial_wavefront.shape
+        x, y = image.shape
         assert x == y
-        initial_ptt = self.getzernikemodes(intitial_wavefront,3)
-        intitial_wavefront_mptt = intitial_wavefront - aotools.phaseFromZernikes(initial_ptt,x)
-        best_error = self._wavefront_error_mode(intitial_wavefront_mptt)
+        best_error = np.inf
         ii = 0
         while (iterations > ii) or (best_error > error_thresh):
             _logger.info("Correction iteration %i/%i" % (ii + 1, iterations))
@@ -744,25 +741,31 @@ class AdaptiveOpticsDevice(Device):
             edge_mask = np.sqrt(
                 (np.arange(-x / 2.0, x / 2.0) ** 2).reshape((x, 1)) + (np.arange(-x / 2.0, x / 2.0) ** 2)) < (
                                 (x / 2.0) - 3)
-            diff_image = abs(np.diff(np.diff(correction_wavefront, axis=1), axis=0)) * edge_mask[:-1, :-1]
-            no_discontinuities = np.shape(np.where(diff_image > 2 * np.pi))[1]
+            diff_correction_wavefront = abs(np.diff(np.diff(correction_wavefront, axis=1), axis=0)) * edge_mask[:-1, :-1]
+            no_discontinuities_correction = np.shape(np.where(diff_correction_wavefront > 2 * np.pi))[1]
             z_amps = self.getzernikemodes(correction_wavefront, nzernike)
+            correction_wavefront_mptt = correction_wavefront - aotools.phaseFromZernikes(z_amps[0:3], x)
+            current_error = self._wavefront_error_mode(correction_wavefront_mptt)
             z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
 
             # Now that the wavefront is corrected, measure it again and calculate RMS deformation
             image = self.acquire()
             corrected_wavefront = unwrap_method[self.phase_method](image)
-            corrected_wavefront_mptt = corrected_wavefront - aotools.phaseFromZernikes(z_amps[0:3], x)
-            current_error = self._wavefront_error_mode(corrected_wavefront_mptt)
+            diff_corrected_wavefront = abs(np.diff(np.diff(corrected_wavefront, axis=1), axis=0)) * edge_mask[:-1,
+                                                                                                      :-1]
+            no_discontinuities_corrected = np.shape(np.where(diff_corrected_wavefront > 2 * np.pi))[1]
+            z_amps_corrected = self.getzernikemodes(corrected_wavefront, nzernike)
+            corrected_wavefront_mptt = corrected_wavefront - aotools.phaseFromZernikes(z_amps_corrected[0:3], x)
+            corrected_error = self._wavefront_error_mode(corrected_wavefront_mptt)
             _logger.info("Current wavefront error is %.5f. Best is %.5f" % (current_error, best_error))
-            if current_error < best_error:
-                if no_discontinuities > (x * y) / 1000.0:
+            if corrected_error < np.min(best_error,current_error):
+                if no_discontinuities_corrected > (x * y) / 1000.0:
                     _logger.info("Too many discontinuities in wavefront unwrap")
                 else:
                     best_flat_actuators = np.copy(flat_actuators)
-                    best_error = np.copy(current_error)
-            elif current_error > best_error:
+                    best_error = np.copy(corrected_error)
+            elif current_error > np.min(best_error, current_error):
                 _logger.info("Wavefront error worse than before")
             else:
                 _logger.info("No improvement in Wavefront error")
