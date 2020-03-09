@@ -725,6 +725,7 @@ class AdaptiveOpticsDevice(Device):
                 pass
 
         best_flat_actuators = np.zeros(numActuators) + 0.5
+        best_z_amps_corrected = np.zeros(nzernike)
         self.send(best_flat_actuators)
         # Get a measure of the RMS phase error of the uncorrected wavefront
         # The corrected wavefront should be better than this
@@ -758,22 +759,22 @@ class AdaptiveOpticsDevice(Device):
             z_amps_corrected = self.getzernikemodes(corrected_wavefront, nzernike)
             corrected_wavefront_mptt = corrected_wavefront - aotools.phaseFromZernikes(z_amps_corrected[0:3], x)
             corrected_error = self._wavefront_error_mode(corrected_wavefront_mptt)
-            _logger.info("Current wavefront error is %.5f. Best is %.5f" % (corrected_error,
-                                                                            np.min([best_error, current_error])))
-            if corrected_error < np.min([best_error, current_error]):
+            _logger.info("Current wavefront error is %.5f. Best is %.5f" % (corrected_error, best_error))
+            if corrected_error < best_error:
                 if no_discontinuities_corrected > ((x * y) / 1000.0):
                     _logger.info("Too many discontinuities in wavefront unwrap")
                 else:
                     best_flat_actuators = np.copy(flat_actuators)
+                    best_z_amps_corrected = np.copy(z_amps)
                     best_error = np.copy(corrected_error)
-            elif current_error > np.min([best_error, current_error]):
+            elif corrected_error < best_error:
                 _logger.info("Wavefront error worse than before")
             else:
                 _logger.info("No improvement in Wavefront error")
             self.send(best_flat_actuators)
             ii += 1
         self.send(best_flat_actuators)
-        return best_flat_actuators
+        return best_flat_actuators, best_z_amps_corrected
 
     @Pyro4.expose
     def set_phase(self, applied_z_modes, offset=None):
