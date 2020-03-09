@@ -749,6 +749,7 @@ class AdaptiveOpticsDevice(Device):
             current_error = self._wavefront_error_mode(correction_wavefront_mptt)
             z_amps = z_amps * z_modes_ignore
             flat_actuators = self.set_phase((-1.0 * z_amps), offset=best_flat_actuators)
+            time.sleep(1)
 
             # Now that the wavefront is corrected, measure it again and calculate RMS deformation
             image = self.acquire()
@@ -759,8 +760,9 @@ class AdaptiveOpticsDevice(Device):
             z_amps_corrected = self.getzernikemodes(corrected_wavefront, nzernike)
             corrected_wavefront_mptt = corrected_wavefront - aotools.phaseFromZernikes(z_amps_corrected[0:3], x)
             corrected_error = self._wavefront_error_mode(corrected_wavefront_mptt)
-            _logger.info("Current wavefront error is %.5f. Best is %.5f" % (corrected_error, best_error))
-            if corrected_error < best_error:
+            _logger.info("Current wavefront error is %.5f. Wavefront error before correction %.5f."
+                         "Best is %.5f" % (corrected_error, current_error, best_error))
+            if corrected_error < best_error and corrected_error < current_error:
                 if no_discontinuities_corrected > ((x * y) / 1000.0):
                     _logger.info("Too many discontinuities in wavefront unwrap")
                 else:
