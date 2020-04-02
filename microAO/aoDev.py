@@ -813,7 +813,7 @@ class AdaptiveOpticsDevice(Device):
         self.check_unwrap_conditions()
 
         if modes_tba is None:
-            modes_tba = self.numActuators
+            modes_tba = self.controlMatrix.shape[1]
         assay = np.zeros((modes_tba, modes_tba))
         applied_z_modes = np.zeros(modes_tba)
         for ii in range(modes_tba):
