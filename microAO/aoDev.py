@@ -705,6 +705,8 @@ class AdaptiveOpticsDevice(Device):
         np.save("control_matrix", self.controlMatrix)
         return self.controlMatrix
 
+    # This method of wavefront flattening should be used when the wavefront sensor defined in __init__ is being used to
+    # directly measure the phase wavefront.
     @Pyro4.expose
     def flatten_phase(self, iterations=1, error_thresh=np.inf, z_modes_ignore=None):
         # Ensure an ROI is defined so a masked image is obtained
@@ -760,6 +762,8 @@ class AdaptiveOpticsDevice(Device):
             diff_correction_wavefront = abs(np.diff(np.diff(correction_wavefront, axis=1), axis=0)) * edge_mask[:-1, :-1]
             no_discontinuities_correction = np.shape(np.where(diff_correction_wavefront > 2 * np.pi))[1]
             z_amps = self.getzernikemodes(correction_wavefront, nzernike)
+
+            ## Here we ignore piston, tip and tilt since they are not true optical aberrations
             correction_wavefront_mptt = correction_wavefront - aotools.phaseFromZernikes(z_amps[0:3], x)
             current_error = self._wavefront_error_mode(correction_wavefront_mptt)
             z_amps = z_amps * z_modes_ignore
@@ -773,6 +777,8 @@ class AdaptiveOpticsDevice(Device):
                                                                                                       :-1]
             no_discontinuities_corrected = np.shape(np.where(diff_corrected_wavefront > 2 * np.pi))[1]
             z_amps_corrected = self.getzernikemodes(corrected_wavefront, nzernike)
+
+            ## Here we ignore piston, tip and tilt since they are not true optical aberrations
             corrected_wavefront_mptt = corrected_wavefront - aotools.phaseFromZernikes(z_amps_corrected[0:3], x)
             corrected_error = self._wavefront_error_mode(corrected_wavefront_mptt)
             _logger.info("Current wavefront error is %.5f. Wavefront error before correction %.5f."
@@ -828,6 +834,58 @@ class AdaptiveOpticsDevice(Device):
             applied_z_modes[ii] = 0.0
         self.reset()
         return assay
+
+    @Pyro4.expose
+    def correct_direct_sensing(self, image, z_modes_ignore=None):
+        # Ensure an ROI is defined so a masked image is obtained
+        try:
+            assert np.any(self.roi) is not None
+        except:
+            raise Exception("No region of interest selected. Please select a region of interest")
+
+        # Ensure the conditions for phase unwrapping are in satisfied
+        self.check_unwrap_conditions()
+
+        # Check dimensions match
+        numActuators, nzernike = np.shape(self.controlMatrix)
+        try:
+            assert numActuators == self.numActuators
+        except:
+            raise Exception("Control Matrix dimension 0 axis and number of "
+                            "actuators do not match.")
+        # Set which modes to ignore while flattening
+        if np.any(z_modes_ignore) is None:
+            # By default, ignore piston, tip and tilt
+            z_modes_ignore = np.asarray(range(nzernike)) > 2
+        else:
+            # If we have more Zernike modes to ignore than in the control matrix, crop to the correct number
+            if len(z_modes_ignore) > nzernike:
+                z_modes_ignore = z_modes_ignore[:nzernike]
+            # If we have fewer Zernike modes to ignore than in the control matrix, pad with zeros (i.e. ignore all the
+            # Zernike modes the user didn't specify)
+            elif len(z_modes_ignore) < nzernike:
+                z_modes_ignore = np.pad(z_modes_ignore, (0, len(z_modes_ignore) - nzernike),
+                                        mode="constant", constant_values=0)
+            else:
+                pass
+
+        x, y = image.shape
+        assert x == y
+
+        correction_wavefront = unwrap_method[self.phase_method](image)
+        edge_mask = np.sqrt(
+            (np.arange(-x / 2.0, x / 2.0) ** 2).reshape((x, 1)) + (np.arange(-x / 2.0, x / 2.0) ** 2)) < (
+                            (x / 2.0) - 3)
+        diff_correction_wavefront = abs(np.diff(np.diff(correction_wavefront, axis=1), axis=0)) * edge_mask[:-1, :-1]
+        no_discontinuities_correction = np.shape(np.where(diff_correction_wavefront > 2 * np.pi))[1]
+        if no_discontinuities_correction > ((x * y) / 1000.0):
+            _logger.info("Too many discontinuities in wavefront unwrap")
+            return
+        else:
+            z_amps = self.getzernikemodes(correction_wavefront, nzernike)
+            z_amps = z_amps * z_modes_ignore
+            flat_actuators = self.set_phase((-1.0 * z_amps), offset=self.last_actuator_patterns)
+            return z_amps, flat_actuators
 
     @Pyro4.expose
     def measure_metric(self, image, **kwargs):
