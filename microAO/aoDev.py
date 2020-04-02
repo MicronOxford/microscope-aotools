@@ -223,6 +223,21 @@ class AdaptiveOpticsDevice(Device):
         return self.pupil_ac
 
     @Pyro4.expose
+    def get_all_unwrap_methods(self):
+        return unwrap_method.keys()
+
+    @Pyro4.expose
+    def get_unwrap_method(self):
+        return self.phase_method
+
+    @Pyro4.expose
+    def set_unwrap_method(self, phase_method):
+        if not phase_method in unwrap_method:
+            raise Exception("TypeError: Not a phase unwrapping method. Check available unwrap methods.")
+        else:
+            self.phase_method = phase_method
+
+    @Pyro4.expose
     def get_all_wavefront_error_modes(self):
         return wavefront_error_modes
 
