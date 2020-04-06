@@ -47,7 +47,6 @@ class AdaptiveOpticsFunctions():
         self.mask = None
         self.fft_filter = None
         self.controlMatrix = None
-        self.OTF_ring_mask = None
         self.metric = 'fourier'
 
     def set_mask(self,mask):
@@ -60,10 +59,6 @@ class AdaptiveOpticsFunctions():
 
     def set_controlMatrix(self, controlMatrix):
         self.controlMatrix = controlMatrix
-        return
-
-    def set_OTF_ring_mask(self, OTF_ring_mask):
-        self.OTF_ring_mask = OTF_ring_mask
         return
 
     def set_metric(self, metric):
