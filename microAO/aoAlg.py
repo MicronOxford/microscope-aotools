@@ -320,12 +320,11 @@ class AdaptiveOpticsFunctions():
         metric = metric_function[self.metric](image, **kwargs)
         return metric
 
-    def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, wavelength, NA, pixel_size):
+    def find_zernike_amp_sensorless(self, image_stack, zernike_amplitudes, **kwargs):
         metrics_measured = []
         for ii in range(image_stack.shape[0]):
             print("Measuring metric %i/%i" % (ii + 1, image_stack.shape[0]))
-            metric_measured = metric_function[self.metric](image_stack[ii, :, :], wavelength=wavelength, NA=NA,
-                                                          pixel_size=pixel_size)
+            metric_measured = metric_function[self.metric](image_stack[ii, :, :], **kwargs)
             metrics_measured.append(metric_measured)
         metrics_measured = np.asarray(metrics_measured)
 
@@ -352,8 +351,7 @@ class AdaptiveOpticsFunctions():
         print("Amplitude calculated = %f" % amplitude_present)
         return amplitude_present
 
-    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike,
-                                     wavelength, NA, pixel_size):
+    def get_zernike_modes_sensorless(self, full_image_stack, full_zernike_applied, nollZernike, **kwargs):
         numMes = int(full_zernike_applied.shape[0]/nollZernike.shape[0])
 
         coef = np.zeros(full_zernike_applied.shape[1])
@@ -361,8 +359,7 @@ class AdaptiveOpticsFunctions():
             image_stack = full_image_stack[ii * numMes:(ii + 1) * numMes,:,:]
             zernike_applied = full_zernike_applied[ii * numMes:(ii + 1) * numMes,nollZernike[ii]-1]
             print("Calculating Zernike amplitude %i/%i" %(ii+1, nollZernike.shape[0]))
-            amp = self.find_zernike_amp_sensorless(image_stack, zernike_applied, wavelength=wavelength, NA=NA,
-                                                   pixel_size=pixel_size)
+            amp = self.find_zernike_amp_sensorless(image_stack, zernike_applied, **kwargs)
             coef[nollZernike[ii]-1] = amp
 
         return coef
