@@ -30,7 +30,7 @@ Note that all microscope_device_name variables need to be imported from
 python-microscope, ip_address variables must be a string and port variables 
 must be an int.
 
-**Adding new wavefront sensing techniques**
+**Adding new wavefront sensing techniques:**
 
 The currently implemented wavefront sensing techniques are stored in the
 *aoAlg.py* file as functions of the AdaptiveOpticsFunctions class with 
