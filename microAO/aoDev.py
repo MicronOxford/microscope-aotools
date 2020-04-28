@@ -446,14 +446,17 @@ class AdaptiveOpticsDevice(Device):
         return self.fft_filter
 
     @Pyro4.expose
-    def check_unwrap_conditions(self, image):
+    def check_unwrap_conditions(self, image=None):
         if self.phase_method == 'interferometry':
             if np.any(self.mask) is None:
                 raise Exception("Mask is None. Please construct mask.")
             else:
                 pass
             if np.any(self.fft_filter) is None:
-                self.set_fourierfilter(image)
+                if image is not None:
+                    self.set_fourierfilter(image)
+                else:
+                    raise Exception("Fourier filter is None. Please construct Fourier filter")
             else:
                 pass
 
