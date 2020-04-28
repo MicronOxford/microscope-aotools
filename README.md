@@ -2,12 +2,13 @@
 
 A composite device for controlling and using deformable mirror adaptive
 optic elements. This composite device can be constructed from any
-python-microscope compatible deformable mirrors and cameras (see 
+python-microscope compatible adaptive optics elements and cameras (see 
 python-microscope compatibility list) as well as certain spatial light
 modulators. The functions presented allow a user to calibrate and 
-characterise a deformable mirror using an interferometric wavefront 
-sensor, to set control matrices determined by other calibration methods 
-and perform sensorless adaptive optics correction with a variety of metrics.
+characterise a adaptive optics elements using a variety of wavefront 
+sensing techniques, to set control matrices determined by other   
+calibration methods and perform sensorless adaptive optics correction  
+with a variety of metrics.
 
 **Set-up:**
 
@@ -29,16 +30,52 @@ Note that all microscope_device_name variables need to be imported from
 python-microscope, ip_address variables must be a string and port variables 
 must be an int.
 
+**Adding new wavefront sensing techniques**
+
+The currently implemented wavefront sensing techniques are stored in the
+*aoAlg.py* file as functions of the AdaptiveOpticsFunctions class with 
+the naming convention *"unwrap_"* Each of these functions, and any new 
+functions a user may wish to add, expects 3 inputs:
+	
+* An image to extract the wavefront from
+* Any key word variables, if any, required for the specific wavefont
+sensing technique
+* The \*\*kwargs syntax
+	
+The final \*\*kwarg syntax is included to catch any key word variables required 
+for other wavefont sensing techniques which higher level processes which
+utilise Microscope-AOtools may pass to the functions, depending on how the 
+wavefont sensing switching is enabled at those levels. The function should 
+output a phase image as a real valued numpy array.
+
+Many wavefront sensing techniques have pre-requisites that, once set, do not
+need to be calculated again e.g. the inteferometric wavefront sensing technique 
+requires a mask to isolate the phase information in the Fourier transform. Once
+this mask has been constructed for one image, it can be used for all subsequent 
+wavefront sensing images. These pre-requisites are stored as attributes of the 
+AdaptiveOpticsFunctions class. Methods for constructing these pre-requisites
+and attributes for storing them should be added to the AdaptiveOpticsFunctions 
+class. The attributes should be set as *None* in the *__init__* function.
+
+Once the new wavefont sensing technique has been added to *aoAlg.py* it
+should be added to the *unwrap_function* dictionary in *aoDev.py* with an 
+appropriate string key i.e. the interferometry wavefront sensing technique
+has the string key *"interferometry"*. Checks for the appropriate pre-requisites 
+should be added to the *check_unwrap_conditions* function in *aoDev.py*. At 
+this point the new wavefont sensing technique can be used in any of the Set-up 
+methods in the same manner as the existing wavefont sensing techniques. 
+
 **Adding new image quality metrics:**
 
-The list of currently implemented image quality assessment techniques are
-stored in the *aoMetrics.py* file. They are all functions of the naming 
-convention *"measure_"* and have the same input and output forms. The each 
+The currently implemented image quality assessment techniques are
+stored in the *aoMetrics.py* file as functions with the naming 
+convention *"measure_"* and have the same input and output forms. Each 
 of these functions, and any new functions a user may wish to add, expects 
 3 inputs:
 	
 * An image to assess the quality of
-* Any key word variable, if any, required for the specific image quality assessment technique
+* Any key word variables, if any, required for the specific image 
+quality assessment technique
 * The \*\*kwargs syntax
 	
 The final \*\*kwarg syntax is included to catch any key word variables required 
