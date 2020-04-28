@@ -35,13 +35,14 @@ must be an int.
 The currently implemented wavefront sensing techniques are stored in the
 *aoAlg.py* file as functions of the AdaptiveOpticsFunctions class with 
 the naming convention *"unwrap_"* Each of these functions, and any new 
-functions a user may wish to add, expects 3 inputs:
+functions a user may wish to add, should be of the form:
 	
-* An image to extract the wavefront from
-* Any key word variables, if any, required for the specific wavefont
-sensing technique
-* The \*\*kwargs syntax
+	def unwrap_*new_technique*(self, image, (N key word variables), **kwargs):
+		#The actual function definition
+		return phase_image
 	
+There may be no key word variables required. If any are required, they
+should be placed between the image key word variable and \*\*kwargs.
 The final \*\*kwarg syntax is included to catch any key word variables required 
 for other wavefont sensing techniques which higher level processes which
 utilise Microscope-AOtools may pass to the functions, depending on how the 
@@ -70,14 +71,15 @@ methods in the same manner as the existing wavefont sensing techniques.
 The currently implemented image quality assessment techniques are
 stored in the *aoMetrics.py* file as functions with the naming 
 convention *"measure_"* and have the same input and output forms. Each 
-of these functions, and any new functions a user may wish to add, expects 
-3 inputs:
+of these functions, and any new functions a user may wish to add, should
+be of the form:
 	
-* An image to assess the quality of
-* Any key word variables, if any, required for the specific image 
-quality assessment technique
-* The \*\*kwargs syntax
+	def measure_*new_technique*(image, (N key word variables), **kwargs):
+		#The actual function definition
+		return metric
 	
+There may be no key word variables required. If any are required, they
+should be placed between the image key word variable and \*\*kwargs.
 The final \*\*kwarg syntax is included to catch any key word variables required 
 for other image quality assessment techniques which higher level processes 
 which utilise Microscope-AOtools may pass to the functions, depending on how 
