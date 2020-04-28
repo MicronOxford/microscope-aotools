@@ -357,7 +357,7 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def get_fourierfilter(self):
         if np.any(self.fft_filter) is None:
-            raise Exception("No Fourier filter created. Please create one.")
+            raise Exception("Fourier filter is None. Please construct Fourier filter")
         else:
             return self.fft_filter
 
@@ -445,25 +445,15 @@ class AdaptiveOpticsDevice(Device):
             _logger.info(e)
         return self.fft_filter
 
-    def check_unwrap_conditions(self, image = None):
-        if image is None:
-            image = self.acquire()
-
+    @Pyro4.expose
+    def check_unwrap_conditions(self, image):
         if self.phase_method == 'interferometry':
             if np.any(self.mask) is None:
-                try:
-                    self.mask = self.make_mask(int(np.round(np.shape(image)[0] / 2)))
-                except Exception as e:
-                    raise Exception([Exception("Problem constructing mask for interferometric phase unwrapping"), e])
+                raise Exception("Mask is None. Please construct mask.")
             else:
                 pass
-
             if np.any(self.fft_filter) is None:
-                try:
-                    self.fft_filter = self.set_fourierfilter(image)
-                except Exception as e:
-                    raise Exception([Exception("Problem constructing fourier filter for interferometric phase unwrapping"),
-                                     e])
+                self.set_fourierfilter(image)
             else:
                 pass
 
@@ -479,7 +469,7 @@ class AdaptiveOpticsDevice(Device):
             image = self.acquire()
 
         # Ensure the conditions for phase unwrapping are in satisfied
-        self.check_unwrap_conditions(image)
+        self.check_unwrap_conditions()
 
         out = unwrap_method[self.phase_method](image)
         return out
