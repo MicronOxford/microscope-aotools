@@ -56,7 +56,7 @@ this mask has been constructed for one image, it can be used for all subsequent
 wavefront sensing images. These pre-requisites are stored as attributes of the 
 AdaptiveOpticsFunctions class. Methods for constructing these pre-requisites
 and attributes for storing them should be added to the AdaptiveOpticsFunctions 
-class. The attributes should be set as *None* in the *__init__* function.
+class. The attributes should be set as *None* in the *\_\_init\_\_* function.
 
 Once the new wavefont sensing technique has been added to *aoAlg.py* it
 should be added to the *unwrap_function* dictionary in *aoDev.py* with an 
