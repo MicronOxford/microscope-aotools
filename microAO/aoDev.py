@@ -44,8 +44,8 @@ wavefront_error_modes = ["RMS","Strehl"]
 
 class AdaptiveOpticsDevice(Device):
     """Class for the adaptive optics device
-    This class requires a mirror and a camera. Everything else is generated
-    on or after __init__"""
+    This class requires an adaptive element and a camera.
+    Everything else is generated on or after __init__"""
 
     _CockpitTriggerType_to_TriggerType = {
         "SOFTWARE": TriggerType.SOFTWARE,
@@ -58,13 +58,13 @@ class AdaptiveOpticsDevice(Device):
         "START": TriggerMode.START,
     }
 
-    def __init__(self, mirror_uri, wavefront_uri=None, slm_uri=None, **kwargs):
+    def __init__(self, ao_element_uri, wavefront_uri=None, slm_uri=None, **kwargs):
         # Init will fail if devices it depends on aren't already running, but
         # deviceserver should retry automatically.
         super(AdaptiveOpticsDevice, self).__init__(**kwargs)
-        # Deformable mirror device.
-        self.mirror = Pyro4.Proxy('PYRO:%s@%s:%d' % (mirror_uri[0].__name__,
-                                                     mirror_uri[1], mirror_uri[2]))
+        # Adaptive optic element device.
+        self.ao_element = Pyro4.Proxy('PYRO:%s@%s:%d' % (ao_element_uri[0].__name__,
+                                                         ao_element_uri[1], ao_element_uri[2]))
         # Wavefront sensor. Must support soft_trigger for now.
         if wavefront_uri is not None:
             self.wavefront_camera = Pyro4.Proxy('PYRO:%s@%s:%d' % (wavefront_uri[0].__name__,
@@ -72,8 +72,8 @@ class AdaptiveOpticsDevice(Device):
         # SLM device
         if slm_uri is not None:
             self.slm = Pyro4.Proxy('PYRO:%s@%s:%d' % (slm_uri[0], slm_uri[1], slm_uri[2]))
-        # self.mirror.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
-        self.numActuators = self.mirror.n_actuators
+        # self.ao_element.set_trigger(TriggerType.RISING_EDGE) #Set trigger type to rising edge
+        self.numActuators = self.ao_element.n_actuators
         # Region of interest (i.e. pupil offset and radius) on camera.
         self.roi = None
         # Mask for the interferometric data
@@ -189,7 +189,7 @@ class AdaptiveOpticsDevice(Device):
     def set_trigger(self, cp_ttype, cp_tmode):
         ttype = self._CockpitTriggerType_to_TriggerType[cp_ttype]
         tmode = self._CockpitTriggerModes_to_TriggerModes[cp_tmode]
-        self.mirror.set_trigger(ttype, tmode)
+        self.ao_element.set_trigger(ttype, tmode)
 
         self.last_trigger_type = cp_ttype
         self.last_trigger_mode = cp_tmode
@@ -200,7 +200,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def get_pattern_index(self):
-        return self.mirror.get_pattern_index()
+        return self.ao_element.get_pattern_index()
 
     @Pyro4.expose
     def get_n_actuators(self):
@@ -290,7 +290,7 @@ class AdaptiveOpticsDevice(Device):
         values[values < 0.0] = 0.0
 
         try:
-            self.mirror.apply_pattern(values)
+            self.ao_element.apply_pattern(values)
         except Exception as e:
             raise e
 
@@ -315,7 +315,7 @@ class AdaptiveOpticsDevice(Device):
         patterns[patterns < 0.0] = 0.0
 
         try:
-            self.mirror.queue_patterns(patterns)
+            self.ao_element.queue_patterns(patterns)
         except Exception as e:
             raise e
 
@@ -364,7 +364,7 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def get_controlMatrix(self):
         if np.any(self.controlMatrix) is None:
-            raise Exception("No control matrix calculated. Please calibrate the mirror")
+            raise Exception("No control matrix calculated. Please calibrate the AO element")
         else:
             return self.controlMatrix
 
