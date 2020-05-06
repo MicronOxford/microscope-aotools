@@ -229,8 +229,8 @@ class AdaptiveOpticsFunctions():
 
         #Perform unwrap
         phaseorder1unwrap = unwrap_phase(phaseorder1mask)
-        out = phaseorder1unwrap * self.mask
-        return out
+        phase_image = phaseorder1unwrap * self.mask
+        return phase_image
 
     def get_zernike_modes(self, image_unwrap, noZernikeModes, resize_dim = 128):
         #Resize image
