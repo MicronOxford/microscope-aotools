@@ -90,6 +90,8 @@ class AdaptiveOpticsDevice(Device):
         self.last_actuator_values = None
         # Last applied actuators pattern
         self.last_actuator_patterns = None
+        # Last applied phase image
+        self.last_phase_pattern = None
 
         # Record the trigger type and modes that have been set
         self.last_trigger_type = None
@@ -125,17 +127,6 @@ class AdaptiveOpticsDevice(Device):
     @Pyro4.expose
     def disable_camera(self):
         self.wavefront_camera.disable()
-
-    @Pyro4.expose
-    def apply_phase_image(self, wavelength, pattern):
-        slm_shape = self.slm.get_shape()
-        try:
-            assert(slm_shape == pattern.shape)
-        except:
-            raise Exception("SLM shape is (%i,%i), recieved pattern of shape (%i,%i)"
-                            %(slm_shape[0], slm_shape[1], pattern.shape[0], pattern.shape[1]))
-
-        self.slm.set_custom_sequence(wavelength,[pattern,pattern])
 
     def generate_isosense_pattern_image(self, shape, dist, wavelength, NA, pixel_size):
         try:
@@ -288,6 +279,7 @@ class AdaptiveOpticsDevice(Device):
     def get_system_flat(self):
         return self.flat_actuators_sys
 
+    # This method is used for AO elements such as DMs which have actuators which require direct signal values to be set.
     @Pyro4.expose
     def send(self, values):
         _logger.info("Sending pattern to AO element")
@@ -309,9 +301,27 @@ class AdaptiveOpticsDevice(Device):
         if (ttype, tmode) is not self.get_trigger():
             self.set_trigger(cp_ttype=ttype, cp_tmode=tmode)
 
+    # This method is for AO elements such as SLMs where the phase shape can be applied directly by sending an image of
+    # the desired phase.
+    @Pyro4.expose
+    def apply_phase_pattern(self, wavelength, pattern):
+        ao_shape = self.ao_element.get_shape()
+        try:
+            assert(ao_shape == pattern.shape)
+        except:
+            raise Exception("AO element shape is (%i,%i), recieved pattern of shape (%i,%i)"
+                            %(ao_shape[0], ao_shape[1], pattern.shape[0], pattern.shape[1]))
+
+        self.ao_element.set_custom_sequence(wavelength,[pattern,pattern])
+        self.last_phase_pattern = pattern
+
     @Pyro4.expose
     def get_last_actuator_values(self):
         return self.last_actuator_values
+
+    @Pyro4.expose
+    def get_last_phase_pattern(self):
+        return self.last_phase_pattern
 
     @Pyro4.expose
     def queue_patterns(self, patterns):
