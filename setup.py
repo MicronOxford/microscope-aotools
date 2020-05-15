@@ -20,7 +20,7 @@ manifest_files = [
 
 setuptools.setup(
   name = "microscope-aotools",
-  version = "1.1.1+dev",
+  version = "1.1.2",
   description = "An extensible microscope adaptive optics use.",
   license = "GPL-3.0+",
 
