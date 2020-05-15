@@ -126,6 +126,17 @@ class AdaptiveOpticsDevice(Device):
     def disable_camera(self):
         self.wavefront_camera.disable()
 
+    @Pyro4.expose
+    def apply_phase_image(self, wavelength, pattern):
+        slm_shape = self.slm.get_shape()
+        try:
+            assert(slm_shape == pattern.shape)
+        except:
+            raise Exception("SLM shape is (%i,%i), recieved pattern of shape (%i,%i)"
+                            %(slm_shape[0], slm_shape[1], pattern.shape[0], pattern.shape[1]))
+
+        self.slm.set_custom_sequence(wavelength,[pattern,pattern])
+
     def generate_isosense_pattern_image(self, shape, dist, wavelength, NA, pixel_size):
         try:
             assert type(shape) is tuple
@@ -279,7 +290,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def send(self, values):
-        _logger.info("Sending pattern to DM")
+        _logger.info("Sending pattern to AO element")
 
         ttype, tmode = self.get_trigger()
         if ttype is not "SOFTWARE":
