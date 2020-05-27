@@ -85,7 +85,7 @@ def measure_gradient_metric(image, **kwargs):
     return metric
 
 
-def measure_fourier_power_metric(image, wavelength, NA, pixel_size, noise_amp_factor=2,
+def measure_fourier_power_metric(image, wavelength, NA, pixel_size, noise_amp_factor=1.125,
                                  high_f_amp_factor=100, **kwargs):
     ray_crit_dist = (1.22 * wavelength) / (2 * NA)
     ray_crit_freq = 1 / ray_crit_dist
@@ -106,7 +106,7 @@ def measure_fourier_power_metric(image, wavelength, NA, pixel_size, noise_amp_fa
     fftarray_sq_log = np.log(np.real(fftarray * np.conj(fftarray)))
 
     noise_mask = make_OTF_mask(np.shape(image), 0, 1.1 * OTF_outer_rad)
-    threshold = np.mean(fftarray_sq_log[noise_mask == 0]) + (noise_amp_factor * np.sqrt(np.var((fftarray_sq_log[noise_mask == 0]))))
+    threshold = np.mean(fftarray_sq_log[noise_mask == 0]) * noise_amp_factor
 
     circ_mask = make_OTF_mask(np.shape(image), 0, OTF_outer_rad)
 
