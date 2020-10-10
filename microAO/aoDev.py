@@ -453,7 +453,7 @@ class AdaptiveOpticsDevice(Device):
         return data
 
     @Pyro4.expose
-    def set_fourierfilter(self, test_image, region=None):
+    def set_fourierfilter(self, test_image, region=None, window_dim=None, mask_di=None):
         # Ensure an ROI is defined so a masked image is obtained
         try:
             assert np.any(self.roi) is not None
@@ -461,7 +461,7 @@ class AdaptiveOpticsDevice(Device):
             raise Exception("No region of interest selected. Please select a region of interest")
 
         try:
-            self.fft_filter = aoAlg.make_fft_filter(test_image, region=region)
+            self.fft_filter = aoAlg.make_fft_filter(test_image, region=region, window_dim=window_dim, mask_di=mask_di)
         except Exception as e:
             _logger.info(e)
         return self.fft_filter
