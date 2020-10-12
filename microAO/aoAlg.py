@@ -129,7 +129,7 @@ class AdaptiveOpticsFunctions():
         mymass = np.sum(myim.ravel())
         return int(np.round(mysum1/mymass)), int(np.round(mysum2/mymass))
 
-    def make_fft_filter(self, image, region=None):
+    def make_fft_filter(self, image, region=None, window_dim = None, mask_di = None):
         # Convert image to array and float
         data = np.asarray(image)
 
@@ -157,24 +157,37 @@ class AdaptiveOpticsFunctions():
         # Find first order point
         maxpoint = np.zeros(np.shape(test_point), dtype=int)
         maxpoint[:] = test_point[:]
-        window = np.zeros((100, 100))
+        if window_dim is None:
+            window_dim = 100
+        elif window_dim % 2 != 0:
+            window_dim += 1
+        else:
+            pass
+        window = np.zeros((window_dim, window_dim))
 
         for ii in range(10):
             try:
                 window[:, :] = np.log(
-                    abs(fftarray[maxpoint[1] - 50:maxpoint[1] + 50, maxpoint[0] - 50:maxpoint[0] + 50]))
+                    abs(fftarray[maxpoint[1] - window_dim // 2:maxpoint[1] + window_dim // 2,
+                        maxpoint[0] - window_dim // 2:maxpoint[0] + window_dim // 2]))
             except ValueError as e:
-                raise Exception("Interferometer stripes are too fine. Please make them coarser").with_traceback(e)
+                raise Exception(
+                    "Interferometer stripes are too fine. Please make them coarser or reduce window size").with_traceback(e.__traceback__)
             thresh = threshold_otsu(window)
             binaryIm = window > thresh
             windowOtsu = window * binaryIm
             CoM = np.zeros((1, 2))
             CoM[0, :] = np.round(center_of_mass(windowOtsu))
-            maxpoint[0] = maxpoint[0] - 50 + int(CoM[0, 1])
-            maxpoint[1] = maxpoint[1] - 50 + int(CoM[0, 0])
+            maxpoint[0] = maxpoint[0] - window_dim // 2 + int(CoM[0, 1])
+            maxpoint[1] = maxpoint[1] - window_dim // 2 + int(CoM[0, 0])
 
         self.fft_filter = np.zeros(np.shape(fftarray))
-        mask_di = int(data.shape[0]*(5.0/16.0))
+        if mask_di is None:
+            mask_di = int(data.shape[0] * (5.0 / 16.0))
+        elif type(mask_di) is not int:
+            mask_di = int(mask_di)
+        else:
+            pass
 
         x_shift = np.min((0, abs(maxpoint[0] - mask_di), abs(maxpoint[0] - fftarray.shape[0]) - mask_di))
         y_shift = np.min((0, abs(maxpoint[1] - mask_di), abs(maxpoint[1] - fftarray.shape[1]) - mask_di))
