@@ -77,7 +77,7 @@ class AdaptiveOpticsFunctions():
         return self.mask
 
 
-    def bin_ndarray(self, ndarray, new_shape, operation='sum'):
+    def bin_ndarray(self, ndarray, new_shape, operation='mean'):
         """
 
         Function acquired from Stack Overflow: https://stackoverflow.com/a/29042041. Stack Overflow or other Stack Exchange
