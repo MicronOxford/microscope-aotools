@@ -352,8 +352,8 @@ class AdaptiveOpticsFunctions():
                                                                            [np.Inf, np.Inf, z_u_bound, np.Inf]))
             print("Calculating amplitude present")
         except RuntimeError:
-            max_from_mean_var = (np.max(metrics_measured) - np.min(metrics_measured))/np.mean(metrics_measured)
-            if max_from_mean_var >= 0.1:
+            max_from_mean_var = (np.max(metrics_measured) - np.mean(metrics_measured))
+            if max_from_mean_var >= 2*np.sqrt(np.var(metrics_measured)):
                 print("Could not accurately fit metric polynomial. Using maximum metric amplitude")
                 mean = zernike_amplitudes[metrics_measured == np.max(metrics_measured)]
             else:
