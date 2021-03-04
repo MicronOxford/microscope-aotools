@@ -114,7 +114,7 @@ class AdaptiveOpticsDevice(Device):
 
         self._wavefront_error_mode = self.wavefront_rms_error
 
-    def _on_shutdown(self):
+    def _do_shutdown(self):
         pass
 
     def initialize(self, *args, **kwargs):
