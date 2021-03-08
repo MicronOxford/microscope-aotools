@@ -14,8 +14,8 @@ with a variety of metrics.
 
 AOTools is set-up like a regular python-microscope device and served with
 the python-microscope device server (see device  server documentation: 
-https://www.python-microscope.org/examples.html). The device layout is 
-as follows:
+https://www.micron.ox.ac.uk/software/microscope/doc/architecture/device-server.html). 
+The device layout is as follows:
 
     device(AdaptiveOpticsDevice, [ip_address], [port],
            {mirror_uri:mirror_args,
