@@ -258,9 +258,9 @@ class AdaptiveOpticsFunctions():
 
         #Calculate Zernike mode
         zcoeffs_dbl = []
-        num_pixels = np.count_nonzero(aotools.zernike(1, resize_dim))
+        num_pixels = np.count_nonzero(aotools.zernike.zernike_noll(1, resize_dim))
         for i in range(1,(noZernikeModes+1)):
-            intermediate = trapz(image_resize * aotools.zernike(i, resize_dim))
+            intermediate = trapz(image_resize * aotools.zernike.zernike_noll(i, resize_dim))
             zcoeffs_dbl.append(trapz(intermediate) / (num_pixels))
         coef = np.asarray(zcoeffs_dbl)
         return coef
