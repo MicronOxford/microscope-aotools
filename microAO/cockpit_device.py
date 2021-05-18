@@ -31,7 +31,6 @@ mirror as currently mounted on DeepSIM in Oxford.
 import os
 import time
 import typing
-from collections import OrderedDict
 
 import aotools
 import cockpit.devices
@@ -413,22 +412,41 @@ class MicroscopeAOCompositeDevicePanel(wx.Panel):
         # Change to have a proper menu?
         self.Bind(wx.EVT_CONTEXT_MENU, self.OnContextMenu)
 
-        # A mapping of context-menu entries to functions, stored as
-        # ordered dict for easy item->func lookup.
-        self._context_menu_items = OrderedDict(
-            [
-                ("Fourier metric", "fourier"),
-                ("Contrast metric", "contrast"),
-                ("Fourier Power metric", "fourier_power"),
-                ("Gradient metric", "gradient"),
-                ("Second Moment metric", "second_moment"),
-                (
-                    "Set System Flat Calculation Paramterers",
-                    self.SetSystemFlatCalculationParameters,
-                ),
-                ("Set Sensorless Parameters", self.SetSensorlessParameters),
-            ]
-        )
+        self._menu_item_id_to_metric: typing.Dict[int, str] = {}
+        self._menu_item_id_to_callback: typing.Dict[
+            int, typing.Callable[[], None]
+        ] = {}
+
+        self._context_menu = wx.Menu()
+
+        for label, metric in [
+            ("Fourier metric", "fourier"),
+            ("Contrast metric", "contrast"),
+            ("Fourier Power metric", "fourier_power"),
+            ("Gradient metric", "gradient"),
+            ("Second Moment metric", "second_moment"),
+        ]:
+            menu_item = self._context_menu.AppendRadioItem(wx.ID_ANY, label)
+            self._menu_item_id_to_metric[menu_item.GetId()] = metric
+            self._context_menu.Bind(
+                wx.EVT_MENU,
+                self.OnContextMenuSelectMetric,
+                id=menu_item.GetId(),
+            )
+        self._context_menu.AppendSeparator()
+
+        for label, callback in [
+            (
+                "Set System Flat Calculation Paramterers",
+                self.SetSystemFlatCalculationParameters,
+            ),
+            ("Set Sensorless Parameters", self.SetSensorlessParameters),
+        ]:
+            menu_item = self._context_menu.Append(wx.ID_ANY, label)
+            self._menu_item_id_to_callback[menu_item.GetId()] = callback
+            self._context_menu.Bind(
+                wx.EVT_MENU, self.OnContextMenuCallback, id=menu_item.GetId()
+            )
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         for btn in [
@@ -448,20 +466,17 @@ class MicroscopeAOCompositeDevicePanel(wx.Panel):
         self.SetSizer(sizer)
 
     def OnContextMenu(self, event: wx.ContextMenuEvent) -> None:
-        menu = cockpit.gui.device.Menu(
-            self._context_menu_items.keys(), self._ContextMenuCallback
+        cockpit.gui.guiUtils.placeMenuAtMouse(
+            event.GetEventObject(), self._context_menu
         )
-        menu.show(event)
 
-    def _ContextMenuCallback(self, index: int, item: str) -> None:
-        del index
-        # If it's a string then it's a metric name, otherwise it will
-        # be a callable (to set parameters).
-        metric_or_function = self._context_menu_items[item]
-        if isinstance(metric_or_function, str):
-            self._device.proxy.set_metric(metric_or_function)
-        else:
-            metric_or_function()
+    def OnContextMenuSelectMetric(self, event: wx.CommandEvent) -> None:
+        metric = self._menu_item_id_to_metric[event.GetId()]
+        self._device.proxy.set_metric(metric)
+
+    def OnContextMenuCallback(self, event: wx.CommandEvent) -> None:
+        callback = self._menu_item_id_to_callback[event.GetId()]
+        callback()
 
     def OnSelectROI(self, event: wx.CommandEvent) -> None:
         del event
