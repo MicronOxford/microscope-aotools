@@ -17,12 +17,12 @@ import cockpit.handlers.executor
 import cockpit.interfaces.imager
 import cockpit.interfaces.stageMover
 import cockpit.util
-import cockpit.util.userConfig as Config
 import numpy as np
 import Pyro4
 import wx
 from cockpit import depot, events
 from cockpit.devices import device
+from cockpit.util import userConfig
 
 import microAO.charAssayViewer as charAssayViewer
 import microAO.phaseViewer as phaseViewer
@@ -69,7 +69,7 @@ class MicroscopeAOCompositeDevice(device.Device):
 
         # Load values from config
         try:
-            self.parameters = Config.getValue("dm_circleParams")
+            self.parameters = userConfig.getValue("dm_circleParams")
             self.proxy.set_roi(
                 self.parameters[0], self.parameters[1], self.parameters[2]
             )
@@ -78,7 +78,7 @@ class MicroscopeAOCompositeDevice(device.Device):
 
         try:
             self.controlMatrix = np.asarray(
-                Config.getValue("dm_controlMatrix")
+                userConfig.getValue("dm_controlMatrix")
             )
             self.proxy.set_controlMatrix(self.controlMatrix)
         except:
@@ -325,7 +325,7 @@ class MicroscopeAOCompositeDevice(device.Device):
         frame.Show()
 
     def onCalibrate(self):
-        self.parameters = Config.getValue("dm_circleParams")
+        self.parameters = userConfig.getValue("dm_circleParams")
         self.proxy.set_roi(
             self.parameters[0], self.parameters[1], self.parameters[2]
         )
@@ -334,7 +334,7 @@ class MicroscopeAOCompositeDevice(device.Device):
             self.proxy.get_roi()
         except Exception as e:
             try:
-                self.parameters = Config.getValue("dm_circleParams")
+                self.parameters = userConfig.getValue("dm_circleParams")
                 self.proxy.set_roi(
                     self.parameters[0], self.parameters[1], self.parameters[2]
                 )
@@ -355,14 +355,16 @@ class MicroscopeAOCompositeDevice(device.Device):
                 raise e
 
         controlMatrix = self.proxy.calibrate(numPokeSteps=5)
-        Config.setValue("dm_controlMatrix", np.ndarray.tolist(controlMatrix))
+        userConfig.setValue(
+            "dm_controlMatrix", np.ndarray.tolist(controlMatrix)
+        )
         contol_matrix_file_path = os.path.join(
             self.config_dir, "control_matrix.txt"
         )
         np.savetxt(contol_matrix_file_path, controlMatrix)
 
     def onCharacterise(self):
-        self.parameters = Config.getValue("dm_circleParams")
+        self.parameters = userConfig.getValue("dm_circleParams")
         self.proxy.set_roi(
             self.parameters[0], self.parameters[1], self.parameters[2]
         )
@@ -371,7 +373,7 @@ class MicroscopeAOCompositeDevice(device.Device):
             self.proxy.get_roi()
         except Exception as e:
             try:
-                self.parameters = Config.getValue("dm_circleParams")
+                self.parameters = userConfig.getValue("dm_circleParams")
                 self.proxy.set_roi(
                     self.parameters[0], self.parameters[1], self.parameters[2]
                 )
@@ -396,7 +398,7 @@ class MicroscopeAOCompositeDevice(device.Device):
         except Exception as e:
             try:
                 self.controlMatrix = np.asarray(
-                    Config.getValue("dm_controlMatrix")
+                    userConfig.getValue("dm_controlMatrix")
                 )
                 self.proxy.set_controlMatrix(self.controlMatrix)
             except:
@@ -407,7 +409,7 @@ class MicroscopeAOCompositeDevice(device.Device):
             cm = self.proxy.get_controlMatrix()
             self.proxy.set_controlMatrix((-1 * cm))
             assay = assay * -1
-            Config.setValue("dm_controlMatrix", np.ndarray.tolist(cm))
+            userConfig.setValue("dm_controlMatrix", np.ndarray.tolist(cm))
             contol_matrix_file_path = os.path.join(
                 self.config_dir, "control_matrix.txt"
             )
@@ -423,7 +425,7 @@ class MicroscopeAOCompositeDevice(device.Device):
         frame.Show()
 
     def onSysFlatCalc(self):
-        self.parameters = Config.getValue("dm_circleParams")
+        self.parameters = userConfig.getValue("dm_circleParams")
         self.proxy.set_roi(
             self.parameters[0], self.parameters[1], self.parameters[2]
         )
@@ -433,7 +435,7 @@ class MicroscopeAOCompositeDevice(device.Device):
             self.proxy.get_roi()
         except Exception as e:
             try:
-                param = np.asarray(Config.getValue("dm_circleParams"))
+                param = np.asarray(userConfig.getValue("dm_circleParams"))
                 self.proxy.set_roi(y0=param[0], x0=param[1], radius=param[2])
             except:
                 raise e
@@ -458,7 +460,7 @@ class MicroscopeAOCompositeDevice(device.Device):
         except Exception as e:
             try:
                 self.controlMatrix = np.asarray(
-                    Config.getValue("dm_controlMatrix")
+                    userConfig.getValue("dm_controlMatrix")
                 )
                 self.proxy.set_controlMatrix(self.controlMatrix)
             except:
@@ -473,12 +475,14 @@ class MicroscopeAOCompositeDevice(device.Device):
             z_modes_ignore=z_ignore,
         )
 
-        Config.setValue("dm_sys_flat", np.ndarray.tolist(self.sys_flat_values))
+        userConfig.setValue(
+            "dm_sys_flat", np.ndarray.tolist(self.sys_flat_values)
+        )
         print("Zernike modes amplitudes corrected:\n", best_z_amps_corrected)
         print("System flat actuator values:\n", self.sys_flat_values)
 
     def onVisualisePhase(self):
-        self.parameters = Config.getValue("dm_circleParams")
+        self.parameters = userConfig.getValue("dm_circleParams")
         self.proxy.set_roi(
             self.parameters[0], self.parameters[1], self.parameters[2]
         )
@@ -487,7 +491,7 @@ class MicroscopeAOCompositeDevice(device.Device):
             self.proxy.get_roi()
         except Exception as e:
             try:
-                param = np.asarray(Config.getValue("dm_circleParams"))
+                param = np.asarray(userConfig.getValue("dm_circleParams"))
                 self.proxy.set_roi(y0=param[0], x0=param[1], radius=param[2])
             except:
                 raise e
@@ -542,7 +546,9 @@ class MicroscopeAOCompositeDevice(device.Device):
 
     def onApplySysFlat(self):
         if self.sys_flat_values is None:
-            self.sys_flat_values = np.asarray(Config.getValue("dm_sys_flat"))
+            self.sys_flat_values = np.asarray(
+                userConfig.getValue("dm_sys_flat")
+            )
 
         self.proxy.send(self.sys_flat_values)
 
@@ -589,7 +595,7 @@ class MicroscopeAOCompositeDevice(device.Device):
         except Exception as e:
             try:
                 self.controlMatrix = np.asarray(
-                    Config.getValue("dm_controlMatrix")
+                    userConfig.getValue("dm_controlMatrix")
                 )
                 self.proxy.set_controlMatrix(self.controlMatrix)
             except:
