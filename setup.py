@@ -35,6 +35,8 @@ setuptools.setup(
     "microAO.testsuite",
   ],
 
+  python_requires = ">=3.5",
+
   install_requires = [
     "numpy",
     "scipy",
@@ -45,6 +47,10 @@ setuptools.setup(
     "six",
     "sympy",
   ],
+
+  extra_requires = {
+    "cockpit": ["microscope-cockpit", "Pyro4", "wxPython", "matplotlib"],
+  },
 
   ## https://pypi.python.org/pypi?:action=list_classifiers
   classifiers = [
@@ -57,4 +63,3 @@ setuptools.setup(
   long_description=long_description,
   long_description_content_type="text/markdown"
 )
-
