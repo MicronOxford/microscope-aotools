@@ -136,7 +136,9 @@ class _ROISelect(wx.Frame):
     This is a window for selecting the ROI for interferometry.
     """
 
-    def __init__(self, parent, input_image: np.ndarray, scale_factor=1) -> None:
+    def __init__(
+        self, parent, input_image: np.ndarray, initial_roi, scale_factor=1
+    ) -> None:
         super().__init__(parent, title="ROI selector")
         self._panel = wx.Panel(self)
         self._img = _np_grey_img_to_wx_image(input_image)
@@ -151,8 +153,12 @@ class _ROISelect(wx.Frame):
         self.canvas = FloatCanvas(self._panel, size=self._img.GetSize())
         self.canvas.Bind(wx.EVT_MOUSE_EVENTS, self.OnMouse)
         self.bitmap = self.canvas.AddBitmap(self._img, (0, 0), Position="cc")
+
         self.circle = self.canvas.AddCircle(
-            (0, 0), 128, LineColor="cyan", LineWidth=2
+            self.canvas.PixelToWorld(initial_roi[:2]),
+            initial_roi[2] * 2,
+            LineColor="cyan",
+            LineWidth=2,
         )
 
         # Save button
@@ -473,7 +479,15 @@ class MicroscopeAOCompositeDevicePanel(wx.Panel):
             scale_factor = original_dim / resize_dim
             img = _bin_ndarray(image_raw, new_shape=(resize_dim, resize_dim))
             img = np.require(img, requirements="C")
-            frame = _ROISelect(self, img, scale_factor)
+
+            last_roi = userConfig.getValue("dm_circleParams")
+            last_roi = (
+                last_roi[1] / scale_factor,
+                last_roi[0] / scale_factor,
+                last_roi[2] / scale_factor,
+            )
+
+            frame = _ROISelect(self, img, last_roi, scale_factor)
             frame.Show()
         else:
             print("Detected nothing but background noise")
