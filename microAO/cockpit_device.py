@@ -1,13 +1,36 @@
-# Cockpit Device file for a Composite AO device as constructed by Microscope-AOtools.
-# Copyright Ian Dobbie, 2017
-# Copyright Nick Hall, 2018
-# released under the GPL 3+
-#
-# This file provides the cockpit end of the driver for a deformable
-# mirror as currently mounted on DeepSIM in Oxford
+#!/usr/bin/python
+# -*- coding: utf-8
+
+## Copyright (C) 2021 David Miguel Susano Pinto <david.pinto@bioch.ox.ac.uk>
+## Copyright (C) 2019 Ian Dobbie <ian.dobbie@bioch.ox.ac.uk>
+## Copyright (C) 2019 Mick Phillips <mick.phillips@gmail.com>
+## Copyright (C) 2019 Nick Hall <nicholas.hall@dtc.ox.ac.uk>
+##
+## This file is part of Cockpit.
+##
+## Cockpit is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+##
+## Cockpit is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with Cockpit.  If not, see <http://www.gnu.org/licenses/>.
+
+"""Cockpit Device file for a Composite AO device as constructed by Microscope-AOtools.
+
+This file provides the cockpit end of the driver for a deformable
+mirror as currently mounted on DeepSIM in Oxford.
+
+"""
 
 import os
 import time
+import typing
 from collections import OrderedDict
 
 import aotools
@@ -23,10 +46,219 @@ import wx
 from cockpit import depot, events
 from cockpit.devices import device
 from cockpit.util import userConfig
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+from matplotlib.figure import Figure
+from wx.lib.floatcanvas.FloatCanvas import FloatCanvas
 
-import microAO.charAssayViewer as charAssayViewer
-import microAO.phaseViewer as phaseViewer
-import microAO.util.selectCircROI as selectCircle
+
+_ROI_MIN_RADIUS = 8
+
+
+def _np_grey_img_to_wx_image(np_img: np.ndarray) -> wx.Image:
+    img_min = np.min(np_img)
+    img_max = np.max(np_img)
+    scaled_img = (np_img - img_min) / (img_max - img_min)
+
+    uint8_img = (scaled_img * 255).astype("uint8")
+    scaled_img_rgb = np.require(
+        np.stack((uint8_img,) * 3, axis=-1), requirements="C"
+    )
+
+    wx_img = wx.Image(
+        scaled_img_rgb.shape[0], scaled_img_rgb.shape[1], scaled_img_rgb,
+    )
+    return wx_img
+
+
+class _ROISelect(wx.Frame):
+    """Display a window that allows the user to select a circular area.
+
+    This is a window for selecting the ROI for interferometry.
+    """
+
+    def __init__(self, input_image: np.ndarray, scale_factor=1) -> None:
+        super().__init__(None, title="ROI selector")
+        self._panel = wx.Panel(self)
+        self._img = _np_grey_img_to_wx_image(input_image)
+        self._scale_factor = scale_factor
+
+        # What, if anything, is being dragged.
+        # XXX: When we require Python 3.8, annotate better with
+        # `typing.Literal[None, "xy", "r"]`
+        self._dragging: typing.Optional[str] = None
+
+        # Canvas
+        self.canvas = FloatCanvas(self._panel, size=self._img.GetSize())
+        self.canvas.Bind(wx.EVT_MOUSE_EVENTS, self.OnMouse)
+        self.bitmap = self.canvas.AddBitmap(self._img, (0, 0), Position="cc")
+        self.circle = self.canvas.AddCircle(
+            (0, 0), 128, LineColor="cyan", LineWidth=2
+        )
+
+        # Save button
+        saveBtn = wx.Button(self._panel, label="Save ROI")
+        saveBtn.Bind(wx.EVT_BUTTON, self.OnSave)
+
+        panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        panel_sizer.Add(self.canvas)
+        panel_sizer.Add(saveBtn, wx.SizerFlags().Border())
+        self._panel.SetSizer(panel_sizer)
+
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(self._panel)
+        self.SetSizerAndFit(frame_sizer)
+
+    @property
+    def ROI(self):
+        """Convert circle parameters to ROI x, y and radius"""
+        roi_x, roi_y = self.canvas.WorldToPixel(self.circle.XY)
+        roi_r = max(self.circle.WH)
+        return (roi_x, roi_y, roi_r)
+
+    def OnSave(self, event: wx.CommandEvent) -> None:
+        roi = [x * self._scale_factor for x in self.ROI]
+        userConfig.setValue("dm_circleParams", (roi[1], roi[0], roi[2]))
+        print("Save ROI button pressed. Current ROI: (%i, %i, %i)" % self.ROI)
+
+    def MoveCircle(self, pos: wx.Point, r) -> None:
+        """Set position and radius of circle with bounds checks."""
+        x, y = pos
+        _x, _y, _r = self.ROI
+        xmax, ymax = self._img.GetSize()
+        if r == _r:
+            x_bounded = min(max(r, x), xmax - r)
+            y_bounded = min(max(r, y), ymax - r)
+            r_bounded = r
+        else:
+            r_bounded = max(_ROI_MIN_RADIUS, min(xmax - x, x, ymax - y, y, r))
+            x_bounded = min(max(r_bounded, x), xmax - r_bounded)
+            y_bounded = min(max(r_bounded, y), ymax - r_bounded)
+        self.circle.SetPoint(self.canvas.PixelToWorld((x_bounded, y_bounded)))
+        self.circle.SetDiameter(2 * r_bounded)
+        if any((x_bounded != x, y_bounded != y, r_bounded != r)):
+            self.circle.SetColor("magenta")
+        else:
+            self.circle.SetColor("cyan")
+
+    def OnMouse(self, event: wx.MouseEvent) -> None:
+        pos = event.GetPosition()
+        x, y, r = self.ROI
+        if event.LeftDClick():
+            # Set circle centre
+            self.MoveCircle(pos, r)
+        elif event.Dragging():
+            # Drag circle centre or radius
+            drag_r = np.sqrt((x - pos[0]) ** 2 + (y - pos[1]) ** 2)
+            if self._dragging is None:
+                # determine what to drag
+                if drag_r < 0.5 * r:
+                    # closer to center
+                    self._dragging = "xy"
+                else:
+                    # closer to edge
+                    self._dragging = "r"
+            elif self._dragging == "r":
+                # Drag circle radius
+                self.MoveCircle((x, y), drag_r)
+            elif self._dragging == "xy":
+                # Drag circle centre
+                self.MoveCircle(pos, r)
+
+        if not event.Dragging():
+            # Stop dragging
+            self._dragging = None
+            self.circle.SetColor("cyan")
+
+        self.canvas.Draw(Force=True)
+
+
+class _PhaseViewer(wx.Frame):
+    """This is a window for selecting the ROI for interferometry."""
+
+    def __init__(self, input_image, image_ft, RMS_error):
+        super().__init__(None, title="Phase View")
+        self._panel = wx.Panel(self)
+
+        wx_img_real = _np_grey_img_to_wx_image(input_image)
+        wx_img_fourier = _np_grey_img_to_wx_image(image_ft)
+
+        self._canvas = FloatCanvas(self._panel, size=wx_img_real.GetSize())
+        self._real_bmp = self._canvas.AddBitmap(
+            wx_img_real, (0, 0), Position="cc"
+        )
+        self._fourier_bmp = self._canvas.AddBitmap(
+            wx_img_fourier, (0, 0), Position="cc"
+        )
+        # By default, show real and hide the fourier transform.
+        self._fourier_bmp.Hide()
+
+        save_btn = wx.ToggleButton(self._panel, label="Show Fourier")
+        save_btn.Bind(wx.EVT_TOGGLEBUTTON, self.OnToggleFourier)
+
+        rms_txt = wx.StaticText(
+            self._panel, label="RMS difference: %.05f" % (RMS_error)
+        )
+
+        panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        panel_sizer.Add(self._canvas)
+
+        bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        bottom_sizer.Add(save_btn, wx.SizerFlags().Center().Border())
+        bottom_sizer.Add(rms_txt, wx.SizerFlags().Center().Border())
+        panel_sizer.Add(bottom_sizer)
+
+        self._panel.SetSizer(panel_sizer)
+
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(self._panel)
+        self.SetSizerAndFit(frame_sizer)
+
+    def OnToggleFourier(self, event: wx.CommandEvent) -> None:
+        show_fourier = event.IsChecked()
+        # These bmp are wx.lib.floatcanvas.FCObjects.Bitmap and not
+        # wx.Bitmap.  Their Show method does not take show argument
+        # and therefore we can't do `Show(show_fourier)`.
+        if show_fourier:
+            self._fourier_bmp.Show()
+            self._real_bmp.Hide()
+        else:
+            self._real_bmp.Show()
+            self._fourier_bmp.Hide()
+        self._canvas.Draw(Force=True)
+
+
+class _CharacterisationAssayViewer(wx.Frame):
+    def __init__(self, parent, characterisation_assay):
+        super().__init__(parent, title="Characterisation Asssay")
+        root_panel = wx.Panel(self)
+
+        figure = Figure()
+
+        img_ax = figure.add_subplot(1, 2, 1)
+        img_ax.imshow(characterisation_assay)
+
+        diag_ax = figure.add_subplot(1, 2, 2)
+        assay_diag = np.diag(characterisation_assay)
+        diag_ax.plot(assay_diag)
+
+        canvas = FigureCanvas(root_panel, wx.ID_ANY, figure)
+
+        info_txt = wx.StaticText(
+            root_panel,
+            label=(
+                "Mean Zernike reconstruction accuracy: %0.5f"
+                % np.mean(assay_diag)
+            ),
+        )
+
+        panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        panel_sizer.Add(info_txt, wx.SizerFlags().Centre().Border())
+        panel_sizer.Add(canvas, wx.SizerFlags(1).Expand())
+        root_panel.SetSizer(panel_sizer)
+
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(root_panel, wx.SizerFlags().Expand())
+        self.SetSizerAndFit(frame_sizer)
 
 
 class MicroscopeAOCompositeDevice(device.Device):
@@ -319,9 +551,7 @@ class MicroscopeAOCompositeDevice(device.Device):
 
     def createCanvas(self, temp, scale_factor):
         temp = np.require(temp, requirements="C")
-        frame = selectCircle.ROISelect(
-            input_image=temp, scale_factor=scale_factor
-        )
+        frame = _ROISelect(input_image=temp, scale_factor=scale_factor)
         frame.Show()
 
     def onCalibrate(self):
@@ -421,7 +651,7 @@ class MicroscopeAOCompositeDevice(device.Device):
         self.sysFlatNollZernike = (np.where(np.diag(assay) > 0.75)[0]) + 1
 
         # Show characterisation assay, excluding piston
-        frame = charAssayViewer.viewCharAssay(assay[1:, 1:])
+        frame = _CharacterisationAssayViewer(assay[1:, 1:])
         frame.Show()
 
     def onSysFlatCalc(self):
@@ -539,7 +769,7 @@ class MicroscopeAOCompositeDevice(device.Device):
             np.log(abs(interferogram_ft)), requirements="C"
         )
 
-        frame = phaseViewer.viewPhase(
+        frame = _PhaseViewer(
             unwrapped_phase, power_spectrum, unwrapped_RMS_error
         )
         frame.Show()
