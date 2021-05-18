@@ -21,15 +21,20 @@
 
 import numpy as np
 import wx
-
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+
 class viewCharAssay(wx.Frame):
     def __init__(self, characterisation_assay):
-        wx.Frame.__init__(self, None, -1, 'Characterisation Asssay. '
-                                          'Mean Zernike reconstruction accuracy: %0.5f'
-                          % (np.mean(np.diag(characterisation_assay))))
+        wx.Frame.__init__(
+            self,
+            None,
+            -1,
+            "Characterisation Asssay. "
+            "Mean Zernike reconstruction accuracy: %0.5f"
+            % (np.mean(np.diag(characterisation_assay))),
+        )
 
         self.Sizer = wx.BoxSizer(wx.HORIZONTAL)
 
@@ -42,7 +47,6 @@ class viewCharAssay(wx.Frame):
         self.axes2 = self.figure.add_subplot(111)
         self.canvas2 = FigureCanvas(self, -1, self.figure)
         self.Sizer.Add(self.canvas2, 1, wx.LEFT | wx.TOP | wx.GROW)
-
 
         self.Fit()
         self.doPlotting(characterisation_assay)

@@ -33,52 +33,68 @@ def normalise(array, scaling=1):
 
 class viewPhase(wx.Frame):
     def __init__(self, input_image, image_ft, RMS_error):
-        wx.Frame.__init__(self, None, -1, 'Visualising phase. '
-                                          'RMS difference: %.05f'% (RMS_error))
+        wx.Frame.__init__(
+            self,
+            None,
+            -1,
+            "Visualising phase. " "RMS difference: %.05f" % (RMS_error),
+        )
         # Use np.require to ensure data is C_CONTIGUOUS.
-        image_norm = np.require(normalise(input_image, scaling=255), requirements='C')
-        image_norm_rgb = np.require(np.stack((image_norm.astype('uint8'),) * 3, axis=-1),
-                                    requirements='C')
+        image_norm = np.require(
+            normalise(input_image, scaling=255), requirements="C"
+        )
+        image_norm_rgb = np.require(
+            np.stack((image_norm.astype("uint8"),) * 3, axis=-1),
+            requirements="C",
+        )
 
-        image_ft_norm = np.require(normalise(image_ft, scaling=255), requirements='C')
-        image_ft_norm_rgb = np.require(np.stack((image_ft_norm.astype('uint8'),) * 3, axis=-1),
-                                       requirements='C')
+        image_ft_norm = np.require(
+            normalise(image_ft, scaling=255), requirements="C"
+        )
+        image_ft_norm_rgb = np.require(
+            np.stack((image_ft_norm.astype("uint8"),) * 3, axis=-1),
+            requirements="C",
+        )
 
         self.Sizer = wx.BoxSizer(wx.VERTICAL)
-        self.img = wx.Image(image_norm_rgb.shape[0],
-                            image_norm_rgb.shape[1],
-                            image_norm_rgb)
-        self.img_ft = wx.Image(image_ft_norm_rgb.shape[0],
-                               image_ft_norm_rgb.shape[1],
-                               image_ft_norm_rgb)
+        self.img = wx.Image(
+            image_norm_rgb.shape[0], image_norm_rgb.shape[1], image_norm_rgb
+        )
+        self.img_ft = wx.Image(
+            image_ft_norm_rgb.shape[0],
+            image_ft_norm_rgb.shape[1],
+            image_ft_norm_rgb,
+        )
         # # Canvas
         self.canvas = FloatCanvas(self, size=self.img.GetSize())
-        self.bitmaps = {'r': self.canvas.AddBitmap(self.img, (0, 0), Position='cc'),
-                        'f': self.canvas.AddBitmap(self.img_ft, (0, 0), Position='cc')}
-        self.bitmaps['f'].Hide()
+        self.bitmaps = {
+            "r": self.canvas.AddBitmap(self.img, (0, 0), Position="cc"),
+            "f": self.canvas.AddBitmap(self.img_ft, (0, 0), Position="cc"),
+        }
+        self.bitmaps["f"].Hide()
         # Set flag of current image type
         self.showing_fourier = False
         self.Sizer.Add(self.canvas)
         # Save button
-        saveBtn = wx.Button(self, label='Real/Fourier Transform switch')
+        saveBtn = wx.Button(self, label="Real/Fourier Transform switch")
         saveBtn.Bind(wx.EVT_BUTTON, self.onSwitch)
         self.Sizer.Add(saveBtn)
         self.Fit()
 
     def onSwitch(self, event):
         if self.showing_fourier:
-            self.bitmaps['r'].Show()
-            self.bitmaps['f'].Hide()
+            self.bitmaps["r"].Show()
+            self.bitmaps["f"].Hide()
         else:
-            self.bitmaps['f'].Show()
-            self.bitmaps['r'].Hide()
+            self.bitmaps["f"].Show()
+            self.bitmaps["r"].Hide()
         self.showing_fourier = not self.showing_fourier
         self.canvas.Draw(Force=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     image = np.zeros((768, 600))
-    image[:int(image.shape[0] / 2), :] = 1
+    image[: int(image.shape[0] / 2), :] = 1
     image_ft = image[::-1]
 
     app = wx.App()
