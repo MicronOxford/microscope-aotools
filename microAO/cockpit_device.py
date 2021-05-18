@@ -437,7 +437,7 @@ class MicroscopeAOCompositeDevicePanel(wx.Panel):
 
         for label, callback in [
             (
-                "Set System Flat Calculation Paramterers",
+                "Set System Flat Calculation Parameters",
                 self.SetSystemFlatCalculationParameters,
             ),
             ("Set Sensorless Parameters", self.SetSensorlessParameters),
@@ -586,7 +586,7 @@ class MicroscopeAOCompositeDevicePanel(wx.Panel):
     def SetSystemFlatCalculationParameters(self) -> None:
         inputs = cockpit.gui.dialogs.getNumberDialog.getManyNumbersFromUser(
             self,
-            "Set the parameters for Sensorless Adaptive Optics routine",
+            "Set system flat parameters",
             [
                 "Number of iterations",
                 "Error threshold",
@@ -613,7 +613,7 @@ class MicroscopeAOCompositeDevicePanel(wx.Panel):
     def SetSensorlessParameters(self) -> None:
         inputs = cockpit.gui.dialogs.getNumberDialog.getManyNumbersFromUser(
             self,
-            "Set the parameters for Sensorless Adaptive Optics routine",
+            "Set sensorless AO parameters",
             [
                 "Aberration range minima",
                 "Aberration range maxima",
