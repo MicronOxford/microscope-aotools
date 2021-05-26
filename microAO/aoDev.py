@@ -426,19 +426,7 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def acquire(self):
-        self.acquiring = True
-        while self.acquiring == True:
-            try:
-                data_raw, timestamp = self.wavefront_camera.grab_next_data()
-                self.acquiring = False
-            except Exception as e:
-                if str(e) == str("ERROR 10: Timeout"):
-                    _logger.info("Recieved Timeout error from camera. Waiting to try again...")
-                    time.sleep(1)
-                else:
-                    _logger.info(type(e))
-                    _logger.info("Error is: %s" % (e))
-                    raise e
+        data_raw = self.acquire_raw()
         if np.any(self.roi) is None:
             data = data_raw
         else:
