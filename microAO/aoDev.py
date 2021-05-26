@@ -19,6 +19,8 @@
 ## along with microAO.  If not, see <http://www.gnu.org/licenses/>.
 
 # Import required packs
+import contextlib
+
 import numpy as np
 import Pyro4
 import time
@@ -41,6 +43,22 @@ unwrap_method = {
 _logger = logging.getLogger(__name__)
 
 wavefront_error_modes = ["RMS","Strehl"]
+
+
+@contextlib.contextmanager
+def _camera_in_ttype_software(camera):
+    ttype = camera.trigger_type
+    tmode = camera.trigger_mode
+
+    ttype_needs_change = ttype is not TriggerType.SOFTWARE
+    try:
+        if ttype_needs_change:
+            camera.set_trigger(TriggerType.SOFTWARE, tmode)
+        yield camera
+    finally:
+        if ttype_needs_change:
+            camera.set_trigger(ttype, tmode)
+
 
 class AdaptiveOpticsDevice(Device):
     """Class for the adaptive optics device
@@ -413,7 +431,8 @@ class AdaptiveOpticsDevice(Device):
         # It's unlikely that this is the right thing to do.
         while True:
             try:
-                data_raw, _ = self.wavefront_camera.grab_next_data()
+                with _camera_in_ttype_software(self.wavefront_camera) as camera:
+                    data_raw, _ = camera.grab_next_data()
                 break
             except Exception as e:
                 # FIXME: this only catches the error from Ximea
