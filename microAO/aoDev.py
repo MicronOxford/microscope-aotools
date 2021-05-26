@@ -409,14 +409,18 @@ class AdaptiveOpticsDevice(Device):
 
     @Pyro4.expose
     def acquire_raw(self):
-        self.acquiring = True
-        while self.acquiring == True:
+        # FIXME: this can loop forever if the camera keeps timing out.
+        # It's unlikely that this is the right thing to do.
+        while True:
             try:
-                data_raw, timestamp = self.wavefront_camera.grab_next_data()
-                self.acquiring = False
+                data_raw, _ = self.wavefront_camera.grab_next_data()
+                break
             except Exception as e:
-                if str(e) == str("ERROR 10: Timeout"):
-                    _logger.info("Recieved Timeout error from camera. Waiting to try again...")
+                # FIXME: this only catches the error from Ximea
+                # cameras (I'm not sure it still does).  We should not
+                # be trying to handle hardware specific exceptions.
+                if str(e) == "ERROR 10: Timeout":
+                    _logger.info("Received Timeout error from camera. Waiting to try again...")
                     time.sleep(1)
                 else:
                     _logger.info(type(e))
