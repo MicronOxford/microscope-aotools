@@ -28,9 +28,9 @@ from microAO.aoAlg import AdaptiveOpticsFunctions
 # Should fix this with multiple inheritance for this class!
 aoAlg = AdaptiveOpticsFunctions()
 
-from microscope.devices import Device
-from microscope.devices import TriggerType
-from microscope.devices import TriggerMode
+from microscope.abc import Device
+from microscope import TriggerType
+from microscope import TriggerMode
 
 import logging
 

@@ -43,7 +43,7 @@ setuptools.setup(
     "scikit-image",
     "aotools",
     "Pyro4",
-    "microscope",
+    "microscope>=0.6.0",
   ],
 
   extra_requires = {
