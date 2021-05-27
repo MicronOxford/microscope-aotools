@@ -494,7 +494,21 @@ class MicroscopeAOCompositeDevicePanel(wx.Panel):
             img = _bin_ndarray(image_raw, new_shape=(resize_dim, resize_dim))
             img = np.require(img, requirements="C")
 
-            last_roi = userConfig.getValue("dm_circleParams")
+            last_roi = userConfig.getValue("dm_circleParams",)
+            # We need to check if getValue() returns None, instead of
+            # passing a default value to getValue().  The reason is
+            # that if there is no ROI at the start, by the time we get
+            # here the device initialize has called updateROI which
+            # also called getValue() which has have the side effect of
+            # setting its value to None.  And we can't set a sensible
+            # default at that time because we have no method to get
+            # the wavefront camera sensor size.
+            if last_roi is None:
+                last_roi = (
+                    *[d // 2 for d in image_raw.shape],
+                    min(image_raw.shape) // 4,
+                )
+
             last_roi = (
                 last_roi[1] / scale_factor,
                 last_roi[0] / scale_factor,
