@@ -42,14 +42,12 @@ setuptools.setup(
     "scipy",
     "scikit-image",
     "aotools",
-    ## We use six instead of anything else because microscope is already
-    ## dependent on size
-    "six",
-    "sympy",
+    "Pyro4",
+    "microscope",
   ],
 
   extra_requires = {
-    "cockpit": ["microscope-cockpit", "Pyro4", "wxPython", "matplotlib"],
+    "cockpit": ["microscope-cockpit", "wxPython", "matplotlib"],
   },
 
   ## https://pypi.python.org/pypi?:action=list_classifiers
