@@ -518,7 +518,11 @@ class MicroscopeAOCompositeDevicePanel(wx.Panel):
             frame = _ROISelect(self, img, last_roi, scale_factor)
             frame.Show()
         else:
-            logger.log.warning("Detected nothing but background noise")
+            wx.MessageBox(
+                "Detected nothing but background noise.",
+                caption="No good image acquired",
+                style=wx.ICON_ERROR | wx.OK | wx.CENTRE,
+            )
 
     def OnVisualisePhase(self, event: wx.CommandEvent) -> None:
         del event
